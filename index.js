@@ -348,8 +348,8 @@ const HTML = `<!DOCTYPE html>
                     <span>✅ Valid: <span class="count" id="validCount">0</span></span>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button class="btn btn-save" id="saveTokensBtn">💾 Save</button>
-                    <button class="btn btn-glow" id="loadTokensBtn">📂 Load</button>
+                    <button class="btn btn-save" id="saveTokensBtn">💾 Save Tokens</button>
+                    <button class="btn btn-glow" id="loadTokensBtn">📂 Load Tokens</button>
                 </div>
             </div>
         </div>
@@ -416,205 +416,275 @@ const HTML = `<!DOCTYPE html>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const socket = io();
-const logArea = document.getElementById("logArea");
-const statusDot = document.getElementById("statusDot");
-const statusText = document.getElementById("statusText");
-const botCount = document.getElementById("botCount");
-const volDisplay = document.getElementById("volDisplay");
-const nowPlaying = document.getElementById("nowPlaying");
-const effectsWrap = document.getElementById("effectsWrap");
-const tokenInput = document.getElementById("tokenInput");
-const tokenCount = document.getElementById("tokenCount");
-const validCount = document.getElementById("validCount");
+// ─── ALL JAVASCRIPT ───
+
+// Get elements
+var logArea = document.getElementById('logArea');
+var statusDot = document.getElementById('statusDot');
+var statusText = document.getElementById('statusText');
+var botCount = document.getElementById('botCount');
+var volDisplay = document.getElementById('volDisplay');
+var nowPlaying = document.getElementById('nowPlaying');
+var effectsWrap = document.getElementById('effectsWrap');
+var tokenInput = document.getElementById('tokenInput');
+var tokenCount = document.getElementById('tokenCount');
+var validCount = document.getElementById('validCount');
+
+// ─── TOKEN FUNCTIONS ───
 
 function updateTokenStats() {
-    const text = tokenInput.value;
-    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 10);
+    var text = tokenInput.value;
+    var lines = text.split('\\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
     tokenCount.textContent = lines.length;
-    validCount.textContent = lines.filter(l => l.startsWith("mfa.") || l.length > 20).length;
+    var valid = lines.filter(function(l) { return l.startsWith('mfa.') || l.length > 20; });
+    validCount.textContent = valid.length;
 }
-tokenInput.addEventListener("input", updateTokenStats);
+
+tokenInput.addEventListener('input', updateTokenStats);
 
 function getTokensFromInput() {
-    const text = tokenInput.value;
-    return text.split("\n").map(l => l.trim()).filter(l => l.length > 10);
+    var text = tokenInput.value;
+    var lines = text.split('\\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
+    return lines;
 }
 
-document.getElementById("saveTokensBtn").onclick = function() {
-    const tokens = getTokensFromInput();
-    if (!tokens.length) { addLog("No tokens to save!", "err"); return; }
-    localStorage.setItem("rintu_tokens", JSON.stringify(tokens));
-    addLog("Saved " + tokens.length + " tokens", "resp");
-};
+// ─── SAVE TOKENS ───
 
-document.getElementById("loadTokensBtn").onclick = function() {
-    const saved = localStorage.getItem("rintu_tokens");
-    if (!saved) { addLog("No saved tokens found", "err"); return; }
-    try {
-        const tokens = JSON.parse(saved);
-        tokenInput.value = tokens.join("\n");
-        updateTokenStats();
-        addLog("Loaded " + tokens.length + " tokens", "resp");
-    } catch(e) { addLog("Error loading tokens", "err"); }
-};
-
-window.onload = function() {
-    const saved = localStorage.getItem("rintu_tokens");
-    if (saved) {
-        try {
-            const tokens = JSON.parse(saved);
-            tokenInput.value = tokens.join("\n");
-            updateTokenStats();
-        } catch(e) {}
+document.getElementById('saveTokensBtn').addEventListener('click', function() {
+    var tokens = getTokensFromInput();
+    if (tokens.length === 0) {
+        addLog('❌ No tokens to save!', 'err');
+        return;
     }
-};
+    try {
+        localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
+        addLog('💾 Saved ' + tokens.length + ' tokens to browser', 'resp');
+    } catch(e) {
+        addLog('❌ Error saving: ' + e.message, 'err');
+    }
+});
+
+// ─── LOAD TOKENS ───
+
+document.getElementById('loadTokensBtn').addEventListener('click', function() {
+    try {
+        var saved = localStorage.getItem('rintu_tokens');
+        if (!saved) {
+            addLog('❌ No saved tokens found', 'err');
+            return;
+        }
+        var tokens = JSON.parse(saved);
+        if (tokens && tokens.length > 0) {
+            tokenInput.value = tokens.join('\\n');
+            updateTokenStats();
+            addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
+        } else {
+            addLog('❌ No valid tokens in save', 'err');
+        }
+    } catch(e) {
+        addLog('❌ Error loading: ' + e.message, 'err');
+    }
+});
+
+// ─── AUTO LOAD ON PAGE START ───
+
+window.addEventListener('load', function() {
+    try {
+        var saved = localStorage.getItem('rintu_tokens');
+        if (saved) {
+            var tokens = JSON.parse(saved);
+            if (tokens && tokens.length > 0) {
+                tokenInput.value = tokens.join('\\n');
+                updateTokenStats();
+                addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
+            }
+        }
+    } catch(e) {
+        console.log('Auto-load error:', e.message);
+    }
+});
+
+// ─── LOGGING ───
 
 function addLog(msg, type) {
-    if (!type) type = "sys";
-    const time = new Date().toLocaleTimeString();
-    const entry = document.createElement("div");
-    entry.className = "log-entry";
-    entry.innerHTML = "<span class=\"time\">[" + time + "]</span> <span class=\"" + type + "\">" + msg + "</span>";
+    if (!type) type = 'sys';
+    var time = new Date().toLocaleTimeString();
+    var entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = '<span class="time">[' + time + ']</span> <span class="' + type + '">' + msg + '</span>';
     logArea.appendChild(entry);
     logArea.scrollTop = logArea.scrollHeight;
 }
 
+// ─── SOCKET ───
+
+var socket = io();
+
 function updateStatus(running, count, title, vol) {
-    statusDot.className = "status-dot " + (running ? "online" : "offline");
-    statusText.className = "status-text " + (running ? "online" : "offline");
-    statusText.textContent = running ? "ONLINE" : "OFFLINE";
+    statusDot.className = 'status-dot ' + (running ? 'online' : 'offline');
+    statusText.className = 'status-text ' + (running ? 'online' : 'offline');
+    statusText.textContent = running ? 'ONLINE' : 'OFFLINE';
     botCount.textContent = count || 0;
     if (vol !== undefined) volDisplay.textContent = Math.round(vol);
-    if (title && title !== "Nothing playing") nowPlaying.textContent = title;
-    else nowPlaying.textContent = "✨ Ready to play";
+    if (title && title !== 'Nothing playing') {
+        nowPlaying.textContent = title;
+    } else {
+        nowPlaying.textContent = '✨ Ready to play';
+    }
 }
 
 function updateEffects(data) {
-    const map = [
-        ["bassboost", "🎵 Bass", "badge-bass"],
-        ["blast", "🔥 Blast", "badge-blast"],
-        ["pungi", "🐍 Pungi", "badge-pungi"],
-        ["superLoudMode", "🔊 Super", "badge-super"],
-        ["forceLoudMode", "⚡ Force", "badge-force"],
-        ["loopMode", "🔄 Loop", "badge-loop"],
-        ["loudMode", "📢 Loud", "badge-loud"]
+    var map = [
+        ['bassboost', '🎵 Bass', 'badge-bass'],
+        ['blast', '🔥 Blast', 'badge-blast'],
+        ['pungi', '🐍 Pungi', 'badge-pungi'],
+        ['superLoudMode', '🔊 Super', 'badge-super'],
+        ['forceLoudMode', '⚡ Force', 'badge-force'],
+        ['loopMode', '🔄 Loop', 'badge-loop'],
+        ['loudMode', '📢 Loud', 'badge-loud']
     ];
-    effectsWrap.innerHTML = "";
+    effectsWrap.innerHTML = '';
     for (var i = 0; i < map.length; i++) {
         var key = map[i][0];
         var label = map[i][1];
         var cls = map[i][2];
         if (data[key]) {
-            var badge = document.createElement("span");
-            badge.className = "badge " + cls;
+            var badge = document.createElement('span');
+            badge.className = 'badge ' + cls;
             badge.textContent = label;
             effectsWrap.appendChild(badge);
         }
     }
 }
 
-socket.on("status_update", function(d) {
-    updateStatus(d.isRunning, d.botCount, d.currentTitle, d.volume);
-    updateEffects(d);
+socket.on('status_update', function(data) {
+    updateStatus(data.isRunning, data.botCount, data.currentTitle, data.volume);
+    updateEffects(data);
 });
 
-socket.on("bots_started", function(d) {
-    addLog("Started " + d.count + " bots", "resp");
-    updateStatus(true, d.count);
+socket.on('bots_started', function(data) {
+    addLog('🚀 ' + data.count + ' bots started successfully', 'resp');
+    updateStatus(true, data.count);
 });
 
-socket.on("bots_stopped", function() {
-    addLog("Bots stopped", "err");
+socket.on('bots_stopped', function() {
+    addLog('⛔ All bots stopped', 'err');
     updateStatus(false, 0);
 });
 
-socket.on("bot_status", function(d) {
-    addLog("Bot " + d.index + "/" + d.total + ": " + d.tag, "resp");
+socket.on('bot_status', function(data) {
+    addLog('🤖 Bot ' + data.index + '/' + data.total + ': ' + data.tag, 'resp');
 });
 
-socket.on("audio_update", function(d) {
-    if (d.title) nowPlaying.textContent = d.title;
-    if (d.volume) volDisplay.textContent = Math.round(d.volume);
+socket.on('audio_update', function(data) {
+    if (data.title) nowPlaying.textContent = data.title;
+    if (data.volume) volDisplay.textContent = Math.round(data.volume);
+    if (data.status === 'playing') addLog('▶️ Playing: ' + data.title, 'resp');
 });
 
-socket.on("command_response", function(d) {
-    var isErr = d.response.includes("❌") || d.response.includes("Error");
-    addLog(d.command + " -> " + d.response, isErr ? "err" : "resp");
+socket.on('command_response', function(data) {
+    var isErr = data.response.includes('❌') || data.response.includes('Error') || data.response.includes('error');
+    addLog('✦ ' + data.command + ' → ' + data.response, isErr ? 'err' : 'resp');
 });
 
-document.getElementById("startBtn").onclick = function() {
+// ─── BUTTONS ───
+
+document.getElementById('startBtn').addEventListener('click', function() {
     var tokens = getTokensFromInput();
-    if (!tokens.length) { addLog("Add tokens first!", "err"); return; }
-    localStorage.setItem("rintu_tokens", JSON.stringify(tokens));
-    socket.emit("start_bots_with_tokens", { tokens: tokens });
-    addLog("Starting " + tokens.length + " bots...", "sys");
-};
-
-document.getElementById("stopBtn").onclick = function() {
-    socket.emit("stop_bots");
-    addLog("Stopping...", "sys");
-};
-
-async function sendCmd(cmd) {
-    if (!cmd) return;
+    if (tokens.length === 0) {
+        addLog('❌ Please add at least one token first!', 'err');
+        return;
+    }
     try {
-        var res = await fetch("/api/command", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ command: cmd })
-        });
-        var data = await res.json();
+        localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
+    } catch(e) {}
+    socket.emit('start_bots_with_tokens', { tokens: tokens });
+    addLog('🚀 Starting ' + tokens.length + ' bots...', 'sys');
+});
+
+document.getElementById('stopBtn').addEventListener('click', function() {
+    socket.emit('stop_bots');
+    addLog('⛔ Stopping bots...', 'sys');
+});
+
+// ─── SEND COMMAND ───
+
+function sendCmd(cmd) {
+    if (!cmd) return;
+    fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
         if (data.response) {
-            var isErr = data.response.includes("❌") || data.response.includes("Error");
-            addLog(cmd + " -> " + data.response, isErr ? "err" : "resp");
+            var isErr = data.response.includes('❌') || data.response.includes('Error');
+            addLog('✦ ' + cmd + ' → ' + data.response, isErr ? 'err' : 'resp');
         }
-    } catch(e) { addLog("Error: " + e.message, "err"); }
+    })
+    .catch(function(e) {
+        addLog('❌ Error: ' + e.message, 'err');
+    });
 }
 
-document.getElementById("sendBtn").onclick = function() {
-    var inp = document.getElementById("cmdInput");
+document.getElementById('sendBtn').addEventListener('click', function() {
+    var inp = document.getElementById('cmdInput');
     sendCmd(inp.value.trim());
-    inp.value = "";
-};
+    inp.value = '';
+});
 
-document.getElementById("cmdInput").onkeypress = function(e) {
-    if (e.key === "Enter") document.getElementById("sendBtn").click();
-};
+document.getElementById('cmdInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        document.getElementById('sendBtn').click();
+    }
+});
 
-var cmdBtns = document.querySelectorAll(".cmd-btn");
+// ─── QUICK COMMANDS ───
+
+var cmdBtns = document.querySelectorAll('.cmd-btn');
 for (var i = 0; i < cmdBtns.length; i++) {
-    cmdBtns[i].onclick = function() {
+    cmdBtns[i].addEventListener('click', function() {
         var cmd = this.dataset.cmd;
-        if (cmd === "play") {
-            var url = prompt("Enter YouTube URL:");
-            if (url) sendCmd("play " + url);
+        if (cmd === 'play') {
+            var url = prompt('🎵 Enter YouTube URL or audio URL:');
+            if (url) sendCmd('play ' + url);
             return;
         }
         sendCmd(cmd);
-    };
+    });
 }
 
-fetch("/api/status").then(function(r) { return r.json(); }).then(function(d) {
-    updateStatus(d.isRunning, d.botCount, d.currentTitle, d.volume);
-    updateEffects(d);
-}).catch(console.error);
+// ─── INITIAL STATUS ───
+
+fetch('/api/status')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        updateStatus(data.isRunning, data.botCount, data.currentTitle, data.volume);
+        updateEffects(data);
+    })
+    .catch(console.error);
+
+// ─── POLL FOR UPDATES ───
 
 setInterval(function() {
-    fetch("/api/status").then(function(r) { return r.json(); }).then(function(d) {
-        updateEffects(d);
-        if (d.currentTitle && d.currentTitle !== "Nothing playing") {
-            nowPlaying.textContent = d.currentTitle;
-        }
-        if (d.volume !== undefined) volDisplay.textContent = Math.round(d.volume);
-    }).catch(console.error);
+    fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            updateEffects(data);
+            if (data.currentTitle && data.currentTitle !== 'Nothing playing') {
+                nowPlaying.textContent = data.currentTitle;
+            }
+            if (data.volume !== undefined) volDisplay.textContent = Math.round(data.volume);
+        })
+        .catch(console.error);
 }, 3000);
 </script>
 </body>
 </html>`;
 
 // ─── SERVE HTML ───
-app.get("/", function(req, res) {
+app.get('/', function(req, res) {
     res.send(HTML);
 });
 
@@ -622,7 +692,7 @@ app.get("/", function(req, res) {
 var dashboardTokens = [];
 var isBotRunning = false;
 
-console.log("RINTU DASHBOARD - Ready!");
+console.log('🌸 RINTU DASHBOARD - Ready!');
 
 // Bot state
 var clients = [];
@@ -631,7 +701,7 @@ var players = new Map();
 var activeResources = new Map();
 var currentFFmpegProcess = null;
 var currentUrl = null;
-var currentTitle = "Nothing playing";
+var currentTitle = 'Nothing playing';
 var currentChannelId = null;
 var loopMode = false;
 var isPaused = false;
@@ -650,7 +720,7 @@ var forceLoudMode = false;
 
 function stopFFmpeg() {
     if (currentFFmpegProcess) {
-        try { currentFFmpegProcess.kill("SIGKILL"); } catch (e) {}
+        try { currentFFmpegProcess.kill('SIGKILL'); } catch (e) {}
         currentFFmpegProcess = null;
     }
 }
@@ -696,54 +766,54 @@ function isYouTubeUrl(url) {
 function startFFmpegStream(inputSource) {
     stopFFmpeg();
     var audioFilters = [];
-    audioFilters.push("highpass=f=60");
+    audioFilters.push('highpass=f=60');
 
     if (superLoudMode) {
-        audioFilters.push("compand=attacks=0.01:decays=0.01:points=-80/-80|-30/-15|-12/-6|-6/-3|0/-2|20/-1");
-        audioFilters.push("volume=15dB");
-        audioFilters.push("acompressor=threshold=0.05:ratio=20:attack=5:release=50");
-        audioFilters.push("alimiter=level_in=15:level_out=0:limit=0.99:attack=1:release=50");
-        audioFilters.push("dynaudnorm=p=0.95:m=100:g=20");
-        audioFilters.push("volume=amplitude=8");
+        audioFilters.push('compand=attacks=0.01:decays=0.01:points=-80/-80|-30/-15|-12/-6|-6/-3|0/-2|20/-1');
+        audioFilters.push('volume=15dB');
+        audioFilters.push('acompressor=threshold=0.05:ratio=20:attack=5:release=50');
+        audioFilters.push('alimiter=level_in=15:level_out=0:limit=0.99:attack=1:release=50');
+        audioFilters.push('dynaudnorm=p=0.95:m=100:g=20');
+        audioFilters.push('volume=amplitude=8');
     }
     if (forceLoudMode) {
-        audioFilters.push("compand=attacks=0.001:decays=0.001:points=-80/-80|-40/-25|-20/-10|0/-5|10/-2|20/0|30/5");
-        audioFilters.push("acompressor=threshold=0.01:ratio=50:attack=1:release=100");
-        audioFilters.push("alimiter=level_in=25:level_out=0.99:limit=1:attack=1:release=100");
-        audioFilters.push("dynaudnorm=p=1:m=100:g=30");
-        audioFilters.push("volume=20dB");
-        audioFilters.push("aecho=0.8:0.9:1000:0.3");
+        audioFilters.push('compand=attacks=0.001:decays=0.001:points=-80/-80|-40/-25|-20/-10|0/-5|10/-2|20/0|30/5');
+        audioFilters.push('acompressor=threshold=0.01:ratio=50:attack=1:release=100');
+        audioFilters.push('alimiter=level_in=25:level_out=0.99:limit=1:attack=1:release=100');
+        audioFilters.push('dynaudnorm=p=1:m=100:g=30');
+        audioFilters.push('volume=20dB');
+        audioFilters.push('aecho=0.8:0.9:1000:0.3');
     }
     if (isBassboosted) {
-        audioFilters.push("equalizer=f=60:width_type=h:width=50:g=15");
+        audioFilters.push('equalizer=f=60:width_type=h:width=50:g=15');
     }
     if (pungiMode) {
-        audioFilters.push("acrusher=bits=4:mode=log:aa=1");
-        audioFilters.push("equalizer=f=30:width_type=h:width=80:g=20");
-        audioFilters.push("equalizer=f=1000:width_type=h:width=500:g=10");
-        audioFilters.push("volume=" + pungiIntensity);
-        audioFilters.push("aphaser=0.8:0.8:2000:0.4");
-        audioFilters.push("aecho=0.8:0.9:1000:0.3");
+        audioFilters.push('acrusher=bits=4:mode=log:aa=1');
+        audioFilters.push('equalizer=f=30:width_type=h:width=80:g=20');
+        audioFilters.push('equalizer=f=1000:width_type=h:width=500:g=10');
+        audioFilters.push('volume=' + pungiIntensity);
+        audioFilters.push('aphaser=0.8:0.8:2000:0.4');
+        audioFilters.push('aecho=0.8:0.9:1000:0.3');
     } else if (blastMode) {
-        audioFilters.push("volume=" + blastVolume);
-        audioFilters.push("dynaudnorm=p=0.9:m=50.0:g=15");
-        audioFilters.push("alimiter=level_in=2.0:level_out=0.98:limit=0.99:attack=5:release=50");
+        audioFilters.push('volume=' + blastVolume);
+        audioFilters.push('dynaudnorm=p=0.9:m=50.0:g=15');
+        audioFilters.push('alimiter=level_in=2.0:level_out=0.98:limit=0.99:attack=5:release=50');
     } else {
         if (currentVolumeMultiplier > 1.0) {
-            audioFilters.push("volume=" + currentVolumeMultiplier);
+            audioFilters.push('volume=' + currentVolumeMultiplier);
         }
     }
 
-    currentFFmpegProcess = spawn("ffmpeg", [
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "5",
-        "-i", inputSource,
-        "-filter:a", audioFilters.join(","),
-        "-f", "s16le",
-        "-ar", "48000",
-        "-ac", "2",
-        "pipe:1"
+    currentFFmpegProcess = spawn('ffmpeg', [
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
+        '-i', inputSource,
+        '-filter:a', audioFilters.join(','),
+        '-f', 's16le',
+        '-ar', '48000',
+        '-ac', '2',
+        'pipe:1'
     ]);
 
     clients.forEach(function(client, index) {
@@ -762,8 +832,8 @@ function startFFmpegStream(inputSource) {
             resource.volume.setVolume(effectiveVol);
             activeResources.set(index, resource);
             player.play(resource);
-            io.emit("audio_update", { 
-                status: "playing", 
+            io.emit('audio_update', { 
+                status: 'playing', 
                 title: currentTitle, 
                 volume: Math.round(effectiveVol * 100) 
             });
@@ -777,23 +847,23 @@ function startBots() {
     if (isBotRunning) return;
     
     if (dashboardTokens.length === 0) {
-        console.log("No tokens available!");
+        console.log('❌ No tokens available!');
         return;
     }
     
     isBotRunning = true;
     dashboardTokens.forEach(function(token, index) {
         var client = new Client({ checkUpdate: false });
-        client.on("ready", function() {
-            console.log("Bot " + (index + 1) + "/" + dashboardTokens.length + ": " + client.user.tag);
-            io.emit("bot_status", { index: index + 1, total: dashboardTokens.length, tag: client.user.tag, status: "online" });
+        client.on('ready', function() {
+            console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + client.user.tag);
+            io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: client.user.tag, status: 'online' });
         });
         client.login(token).catch(function(err) {
-            console.log("Bot " + (index + 1) + " login failed: " + err.message);
+            console.log('❌ Bot ' + (index + 1) + ' login failed: ' + err.message);
         });
         clients.push(client);
     });
-    io.emit("bots_started", { count: dashboardTokens.length });
+    io.emit('bots_started', { count: dashboardTokens.length });
 }
 
 function stopBots() {
@@ -809,12 +879,12 @@ function stopBots() {
     clients = [];
     currentUrl = null;
     currentChannelId = null;
-    io.emit("bots_stopped");
-    console.log("All bots stopped");
+    io.emit('bots_stopped');
+    console.log('⛔ All bots stopped');
 }
 
 // API Routes
-app.get("/api/status", function(req, res) {
+app.get('/api/status', function(req, res) {
     res.json({
         isRunning: isBotRunning,
         botCount: clients.length,
@@ -833,61 +903,61 @@ app.get("/api/status", function(req, res) {
     });
 });
 
-app.post("/api/command", async function(req, res) {
+app.post('/api/command', async function(req, res) {
     var command = req.body.command;
-    if (!command) return res.json({ error: "No command" });
+    if (!command) return res.json({ error: 'No command' });
     
     var lowerCmd = command.toLowerCase().trim();
-    var response = "";
+    var response = '';
 
     try {
-        if (lowerCmd === "help") {
-            response = "Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n" + dashboardTokens.length + " tokens loaded";
+        if (lowerCmd === 'help') {
+            response = 'Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n📊 ' + dashboardTokens.length + ' tokens loaded';
         }
-        else if (lowerCmd.startsWith("play ")) {
+        else if (lowerCmd.startsWith('play ')) {
             var url = command.slice(5).trim();
             if (connections.size === 0) {
-                response = "Join a voice channel first!";
+                response = '❌ Join a voice channel first!';
             } else if (isYouTubeUrl(url)) {
                 try {
                     var result = await youtubedl(url, {
                         dumpSingleJson: true,
                         noPlaylist: true,
-                        format: "bestaudio[ext=webm]/bestaudio/best",
+                        format: 'bestaudio[ext=webm]/bestaudio/best',
                         noWarnings: true
                     });
                     currentUrl = result.url;
-                    currentTitle = result.title || "YouTube Audio";
+                    currentTitle = result.title || 'YouTube Audio';
                     startFFmpegStream(currentUrl);
-                    response = "Now Playing: " + currentTitle;
+                    response = '▶️ Now Playing: ' + currentTitle;
                 } catch (err) {
-                    response = "Error: " + err.message;
+                    response = '❌ Error: ' + err.message;
                 }
             } else {
                 currentUrl = url;
-                currentTitle = "Direct Audio";
+                currentTitle = 'Direct Audio';
                 startFFmpegStream(url);
-                response = "Playing: " + url;
+                response = '▶️ Playing: ' + url;
             }
         }
-        else if (lowerCmd === "stop") {
+        else if (lowerCmd === 'stop') {
             stopFFmpeg();
             stopLoudMode();
             players.forEach(function(p) { p.stop(); });
             activeResources.clear();
-            response = "Playback stopped";
+            response = '⏹️ Playback stopped';
         }
-        else if (lowerCmd === "pause") {
+        else if (lowerCmd === 'pause') {
             players.forEach(function(p) { p.pause(); });
             isPaused = true;
-            response = "Paused";
+            response = '⏸️ Paused';
         }
-        else if (lowerCmd === "resume") {
+        else if (lowerCmd === 'resume') {
             players.forEach(function(p) { p.unpause(); });
             isPaused = false;
-            response = "Resumed";
+            response = '▶️ Resumed';
         }
-        else if (lowerCmd === "leave") {
+        else if (lowerCmd === 'leave') {
             stopFFmpeg();
             stopLoudMode();
             players.forEach(function(p) { p.stop(); });
@@ -897,88 +967,88 @@ app.post("/api/command", async function(req, res) {
             activeResources.clear();
             currentUrl = null;
             currentChannelId = null;
-            response = "Disconnected all bots";
+            response = '👋 Disconnected all bots';
         }
-        else if (lowerCmd.startsWith("volume ")) {
+        else if (lowerCmd.startsWith('volume ')) {
             var vol = parseInt(command.slice(7).trim(), 10);
             if (isNaN(vol) || vol < 1 || vol > 20000) {
-                response = "Volume must be 1-20000";
+                response = '❌ Volume must be 1-20000';
             } else {
                 currentVolumeMultiplier = vol / 100;
                 activeResources.forEach(function(res) {
                     if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
                 });
-                response = "Volume set to " + vol + "%";
+                response = '🔊 Volume set to ' + vol + '%';
             }
         }
-        else if (lowerCmd === "max") {
+        else if (lowerCmd === 'max') {
             currentVolumeMultiplier = 100.0;
             activeResources.forEach(function(res) {
                 if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "MAXIMUM VOLUME (10000%)";
+            response = '💥 MAXIMUM VOLUME (10000%)';
         }
-        else if (lowerCmd === "blast") {
+        else if (lowerCmd === 'blast') {
             blastMode = !blastMode;
             pungiMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "Blast Mode " + (blastMode ? "ACTIVATED" : "DEACTIVATED");
+            response = '🔥 Blast Mode ' + (blastMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        else if (lowerCmd === "doubleblast") {
+        else if (lowerCmd === 'doubleblast') {
             blastMode = true; pungiMode = false; superLoudMode = false; forceLoudMode = false;
             blastVolume = 100.0; currentVolumeMultiplier = 100.0;
             activeResources.forEach(function(res) {
                 if (res && res.volume) res.volume.setVolume(100.0);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "DOUBLE BLAST ACTIVATED!";
+            response = '💥💥 DOUBLE BLAST ACTIVATED!';
         }
-        else if (lowerCmd === "superloud") {
+        else if (lowerCmd === 'superloud') {
             superLoudMode = !superLoudMode;
             if (superLoudMode) { blastMode = false; pungiMode = false; forceLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "Super Loud " + (superLoudMode ? "ACTIVATED" : "DEACTIVATED");
+            response = '🔊 Super Loud ' + (superLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        else if (lowerCmd === "forceloud") {
+        else if (lowerCmd === 'forceloud') {
             forceLoudMode = !forceLoudMode;
             if (forceLoudMode) { blastMode = false; pungiMode = false; superLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "Force Loud " + (forceLoudMode ? "ACTIVATED" : "DEACTIVATED");
+            response = '🔥 Force Loud ' + (forceLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        else if (lowerCmd === "bassboost") {
+        else if (lowerCmd === 'bassboost') {
             isBassboosted = !isBassboosted;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "Bassboost " + (isBassboosted ? "ENABLED" : "DISABLED");
+            response = '🎵 Bassboost ' + (isBassboosted ? 'ENABLED' : 'DISABLED');
         }
-        else if (lowerCmd === "pungi") {
+        else if (lowerCmd === 'pungi') {
             pungiMode = !pungiMode;
             blastMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = "Pungi Mode " + (pungiMode ? "ACTIVATED" : "DEACTIVATED");
+            response = '🐍 Pungi Mode ' + (pungiMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        else if (lowerCmd.startsWith("pungiset ")) {
+        else if (lowerCmd.startsWith('pungiset ')) {
             var val = parseFloat(command.slice(9).trim());
             if (isNaN(val) || val < 1 || val > 200) {
-                response = "Intensity must be 1-200";
+                response = '❌ Intensity must be 1-200';
             } else {
                 pungiIntensity = val;
                 if (pungiMode && currentUrl) startFFmpegStream(currentUrl);
-                response = "Pungi intensity set to " + val + "x";
+                response = '🐍 Pungi intensity set to ' + val + 'x';
             }
         }
-        else if (lowerCmd === "loudmode") {
+        else if (lowerCmd === 'loudmode') {
             loudMode = !loudMode;
             if (loudMode) startLoudMode();
             else stopLoudMode();
-            response = "Loud Mode " + (loudMode ? "ENABLED" : "DISABLED");
+            response = '🔊 Loud Mode ' + (loudMode ? 'ENABLED' : 'DISABLED');
         }
-        else if (lowerCmd === "loop") {
+        else if (lowerCmd === 'loop') {
             loopMode = !loopMode;
-            response = "Loop " + (loopMode ? "ENABLED" : "DISABLED");
+            response = '🔄 Loop ' + (loopMode ? 'ENABLED' : 'DISABLED');
         }
-        else if (lowerCmd === "status") {
-            response = currentTitle + "\n" + clients.length + "/" + dashboardTokens.length + " bots online\n" + Math.round(currentVolumeMultiplier * 100) + "%\nLoop: " + (loopMode ? "ON" : "OFF");
+        else if (lowerCmd === 'status') {
+            response = '🎵 ' + currentTitle + '\n📊 ' + clients.length + '/' + dashboardTokens.length + ' bots online\n🔊 ' + Math.round(currentVolumeMultiplier * 100) + '%\n🔄 Loop: ' + (loopMode ? 'ON' : 'OFF');
         }
         else if (!isNaN(lowerCmd) && lowerCmd.length >= 10) {
             currentChannelId = lowerCmd;
@@ -1006,27 +1076,27 @@ app.post("/api/command", async function(req, res) {
                             players.set(index, player);
                         }
                     }).catch(function(err) {
-                        console.log("Bot " + (index + 1) + " join error: " + err.message);
+                        console.log('❌ Bot ' + (index + 1) + ' join error: ' + err.message);
                     });
                 })(i);
             }
-            response = "Connected " + clients.length + " bots to channel " + lowerCmd;
+            response = '✅ Connected ' + clients.length + ' bots to channel ' + lowerCmd;
         }
         else {
-            response = "Unknown command. Type help for list.";
+            response = '❌ Unknown command. Type "help" for list.';
         }
     } catch (err) {
-        response = "Error: " + err.message;
+        response = '❌ Error: ' + err.message;
     }
 
-    io.emit("command_response", { command: command, response: response });
+    io.emit('command_response', { command: command, response: response });
     res.json({ response: response });
 });
 
 // ─── SOCKET.IO ───
-io.on("connection", function(socket) {
-    console.log("Dashboard connected");
-    socket.emit("status_update", {
+io.on('connection', function(socket) {
+    console.log('📱 Dashboard connected');
+    socket.emit('status_update', {
         isRunning: isBotRunning,
         botCount: clients.length,
         totalTokens: dashboardTokens.length,
@@ -1034,7 +1104,7 @@ io.on("connection", function(socket) {
         volume: Math.round(currentVolumeMultiplier * 100)
     });
     
-    socket.on("start_bots_with_tokens", function(data) {
+    socket.on('start_bots_with_tokens', function(data) {
         var newTokens = data.tokens;
         if (newTokens && newTokens.length > 0) {
             dashboardTokens = [];
@@ -1044,20 +1114,20 @@ io.on("connection", function(socket) {
                     dashboardTokens.push(t);
                 }
             }
-            console.log("Updated tokens from dashboard: " + dashboardTokens.length + " tokens");
+            console.log('🔄 Updated tokens from dashboard: ' + dashboardTokens.length + ' tokens');
             startBots();
         } else {
-            console.log("No valid tokens received from dashboard");
+            console.log('❌ No valid tokens received from dashboard');
         }
     });
     
-    socket.on("start_bots", function() { startBots(); });
-    socket.on("stop_bots", function() { stopBots(); });
+    socket.on('start_bots', function() { startBots(); });
+    socket.on('stop_bots', function() { stopBots(); });
 });
 
 // Start server
 var PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
-    console.log("RINTU DASHBOARD: http://localhost:" + PORT);
-    console.log("Open your Railway URL!");
+    console.log('\n🌸 RINTU DASHBOARD: http://localhost:' + PORT);
+    console.log('📱 Open your Railway URL!\n');
 });
