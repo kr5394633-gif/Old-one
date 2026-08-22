@@ -183,7 +183,7 @@
 <div class="container">
     <div class="header">
         <h1>🌸 RINTU</h1>
-        <div class="sub">✦ WORKING DASHBOARD ✦</div>
+        <div class="sub">✦ FINAL WORKING ✦</div>
     </div>
 
     <div class="card">
@@ -253,7 +253,7 @@
     <div class="card">
         <div class="card-title">📋 Log</div>
         <div class="log-area" id="logArea">
-            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU ready</span></div>
+            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU FINAL ready</span></div>
         </div>
     </div>
 </div>
@@ -262,8 +262,6 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ─── ALL JAVASCRIPT ───
-
 function showToast(msg, type) {
     var toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -292,7 +290,6 @@ function updateTokenCount() {
 
 document.getElementById('tokenInput').addEventListener('input', updateTokenCount);
 
-// ─── SAVE ───
 document.getElementById('saveBtn').onclick = function() {
     var tokens = getTokens();
     if (tokens.length === 0) {
@@ -308,7 +305,6 @@ document.getElementById('saveBtn').onclick = function() {
     }
 };
 
-// ─── LOAD ───
 document.getElementById('loadBtn').onclick = function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
@@ -328,7 +324,6 @@ document.getElementById('loadBtn').onclick = function() {
     }
 };
 
-// ─── AUTO LOAD ───
 (function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
@@ -345,7 +340,6 @@ document.getElementById('loadBtn').onclick = function() {
     } catch (e) {}
 })();
 
-// ─── LOG ───
 function addLog(msg, type) {
     if (!type) type = 'sys';
     var time = new Date().toLocaleTimeString();
@@ -356,7 +350,6 @@ function addLog(msg, type) {
     document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
 }
 
-// ─── SOCKET ───
 var socket = io();
 
 function updateStatus(running, count, title) {
@@ -401,7 +394,6 @@ socket.on('command_response', function(d) {
     addLog(d.command + ' → ' + d.response, isErr ? 'err' : 'resp');
 });
 
-// ─── START ───
 document.getElementById('startBtn').onclick = function() {
     addLog('START clicked!', 'sys');
     var tokens = getTokens();
@@ -441,7 +433,6 @@ document.getElementById('startBtn').onclick = function() {
     });
 };
 
-// ─── STOP ───
 document.getElementById('stopBtn').onclick = function() {
     addLog('STOP clicked!', 'sys');
     fetch('/api/stop-bots', {
@@ -460,7 +451,6 @@ document.getElementById('stopBtn').onclick = function() {
     });
 };
 
-// ─── JOIN SERVER ───
 document.getElementById('joinBtn').onclick = function() {
     var invite = document.getElementById('inviteInput').value.trim();
     if (!invite) {
@@ -488,9 +478,9 @@ document.getElementById('joinBtn').onclick = function() {
     });
 };
 
-// ─── COMMAND ───
 function sendCmd(cmd) {
     if (!cmd) return;
+    addLog('Sending command: ' + cmd, 'sys');
     fetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -519,7 +509,6 @@ document.getElementById('cmdInput').onkeypress = function(e) {
     if (e.key === 'Enter') document.getElementById('sendBtn').click();
 };
 
-// ─── QUICK COMMANDS ───
 var btns = document.querySelectorAll('.cmd-btn');
 for (var i = 0; i < btns.length; i++) {
     btns[i].onclick = function() {
@@ -533,7 +522,6 @@ for (var i = 0; i < btns.length; i++) {
     };
 }
 
-// ─── INITIAL STATUS ───
 fetch('/api/status')
     .then(function(r) { return r.json(); })
     .then(function(d) {
@@ -542,4 +530,4 @@ fetch('/api/status')
     .catch(console.error);
 </script>
 </body>
-              </html>
+</html>
