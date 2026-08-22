@@ -4,12 +4,16 @@ const socketIo = require('socket.io');
 const { Client } = require('discord.js-selfbot-v13');
 const ytdl = require('ytdl-core');
 const ffmpeg = require('ffmpeg-static');
-const { spawn } = require('child_process');
 const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -112,6 +116,7 @@ const HTML = `<!DOCTYPE html>
         .btn-save { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; }
         .btn-save:hover { transform: translateY(-2px); }
         .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+        .btn-danger:hover { transform: translateY(-2px); }
         .now-playing {
             display: flex;
             align-items: center;
@@ -199,7 +204,7 @@ const HTML = `<!DOCTYPE html>
 <div class="container">
     <div class="header">
         <h1>🌸 RINTU</h1>
-        <div class="sub">✦ Full Control ✦</div>
+        <div class="sub">✦ Working Dashboard ✦</div>
     </div>
 
     <div class="card">
@@ -211,7 +216,6 @@ const HTML = `<!DOCTYPE html>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-save" id="saveBtn">💾 Save</button>
                     <button class="btn btn-glow" id="loadBtn">📂 Load</button>
-                    <button class="btn btn-danger" id="clearBtn">🗑️ Clear</button>
                 </div>
             </div>
         </div>
@@ -277,9 +281,8 @@ const HTML = `<!DOCTYPE html>
 
 <div id="toast" class="toast"></div>
 
-<script src="/socket.io/socket.io.js"></script>
 <script>
-// ─── TOAST NOTIFICATION ───
+// ─── TOAST ───
 function showToast(msg, type) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -288,10 +291,10 @@ function showToast(msg, type) {
     setTimeout(() => { toast.className = 'toast'; }, 3000);
 }
 
-// ─── TOKEN FUNCTIONS ───
+// ─── TOKENS ───
 function getTokens() {
     const text = document.getElementById('tokenInput').value;
-    return text.split('\n').map(l => l.trim()).filter(l => l.length > 10);
+    return text.split('\\n').map(l => l.trim()).filter(l => l.length > 10);
 }
 
 function updateTokenCount() {
@@ -299,10 +302,9 @@ function updateTokenCount() {
     document.getElementById('tokenCount').textContent = tokens.length;
 }
 
-// Auto-update token count on input
 document.getElementById('tokenInput').addEventListener('input', updateTokenCount);
 
-// ─── SAVE TOKENS ───
+// ─── SAVE ───
 document.getElementById('saveBtn').onclick = function() {
     const tokens = getTokens();
     if (tokens.length === 0) {
@@ -314,62 +316,48 @@ document.getElementById('saveBtn').onclick = function() {
         showToast('💾 Saved ' + tokens.length + ' tokens!', 'success');
         addLog('💾 Saved ' + tokens.length + ' tokens', 'resp');
     } catch (e) {
-        showToast('❌ Error saving: ' + e.message, 'error');
+        showToast('❌ Error: ' + e.message, 'error');
     }
 };
 
-// ─── LOAD TOKENS ───
+// ─── LOAD ───
 document.getElementById('loadBtn').onclick = function() {
     try {
         const saved = localStorage.getItem('rintu_tokens');
         if (!saved) {
-            showToast('❌ No saved tokens found!', 'error');
+            showToast('❌ No saved tokens!', 'error');
             return;
         }
         const tokens = JSON.parse(saved);
         if (tokens && tokens.length > 0) {
-            document.getElementById('tokenInput').value = tokens.join('\n');
+            document.getElementById('tokenInput').value = tokens.join('\\n');
             updateTokenCount();
             showToast('📂 Loaded ' + tokens.length + ' tokens!', 'success');
             addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
-        } else {
-            showToast('❌ No valid tokens in save', 'error');
         }
     } catch (e) {
-        showToast('❌ Error loading: ' + e.message, 'error');
+        showToast('❌ Error: ' + e.message, 'error');
     }
 };
 
-// ─── CLEAR TOKENS ───
-document.getElementById('clearBtn').onclick = function() {
-    document.getElementById('tokenInput').value = '';
-    updateTokenCount();
-    localStorage.removeItem('rintu_tokens');
-    showToast('🗑️ Tokens cleared!', 'success');
-    addLog('🗑️ Tokens cleared', 'sys');
-};
-
-// ─── AUTO-LOAD TOKENS ON PAGE START ───
+// ─── AUTO LOAD ───
 (function autoLoad() {
     try {
         const saved = localStorage.getItem('rintu_tokens');
         if (saved) {
             const tokens = JSON.parse(saved);
             if (tokens && tokens.length > 0) {
-                document.getElementById('tokenInput').value = tokens.join('\n');
+                document.getElementById('tokenInput').value = tokens.join('\\n');
                 updateTokenCount();
-                // Show a small indicator in log
                 setTimeout(() => {
                     addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
                 }, 500);
             }
         }
-    } catch (e) {
-        console.log('Auto-load error:', e.message);
-    }
+    } catch (e) {}
 })();
 
-// ─── LOGGING ───
+// ─── LOG ───
 function addLog(msg, type) {
     if (!type) type = 'sys';
     const time = new Date().toLocaleTimeString();
@@ -393,6 +381,10 @@ function updateStatus(running, count, title) {
     if (title) document.getElementById('nowPlaying').textContent = title;
 }
 
+socket.on('connect', () => {
+    addLog('🔌 Connected to server', 'sys');
+});
+
 socket.on('status_update', (d) => updateStatus(d.isRunning, d.botCount, d.currentTitle));
 socket.on('bots_started', (d) => { addLog('🚀 ' + d.count + ' bots started', 'resp'); updateStatus(true, d.count); });
 socket.on('bots_stopped', () => { addLog('⛔ Bots stopped', 'err'); updateStatus(false, 0); });
@@ -400,7 +392,7 @@ socket.on('bot_status', (d) => addLog('🤖 Bot ' + d.index + '/' + d.total + ':
 socket.on('audio_update', (d) => { if(d.title) document.getElementById('nowPlaying').textContent = d.title; if(d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume); });
 socket.on('command_response', (d) => addLog('✦ ' + d.command + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp'));
 
-// ─── START BOTS ───
+// ─── START ───
 document.getElementById('startBtn').onclick = function() {
     const tokens = getTokens();
     if (tokens.length === 0) {
@@ -409,12 +401,12 @@ document.getElementById('startBtn').onclick = function() {
         return;
     }
     localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    socket.emit('start_bots_with_tokens', { tokens });
+    socket.emit('start_bots_with_tokens', { tokens: tokens });
     addLog('🚀 Starting ' + tokens.length + ' bots...', 'sys');
     showToast('🚀 Starting ' + tokens.length + ' bots...', 'success');
 };
 
-// ─── STOP BOTS ───
+// ─── STOP ───
 document.getElementById('stopBtn').onclick = function() {
     socket.emit('stop_bots');
     addLog('⛔ Stopping...', 'sys');
@@ -437,7 +429,7 @@ document.getElementById('joinBtn').onclick = function() {
     .then(data => {
         if (data.message) {
             addLog('✅ ' + data.message, 'resp');
-            showToast('✅ ' + data.message.split('\n')[0], 'success');
+            showToast('✅ Bot joined server!', 'success');
         }
         if (data.error) {
             addLog('❌ ' + data.error, 'err');
@@ -526,7 +518,9 @@ function startBots() {
         return;
     }
 
+    console.log('🚀 Starting ' + dashboardTokens.length + ' bots...');
     isBotRunning = true;
+    
     dashboardTokens.forEach((token, index) => {
         const client = new Client({ 
             checkUpdate: false,
@@ -539,32 +533,45 @@ function startBots() {
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
         });
 
+        client.on('error', (err) => {
+            console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
+        });
+
         client.login(token).catch(err => {
-            console.log('❌ Bot ' + (index + 1) + ' login failed');
+            console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
         });
         clients.push(client);
     });
+    
     io.emit('bots_started', { count: dashboardTokens.length });
 }
 
 function stopBots() {
+    console.log('⛔ Stopping all bots...');
     isBotRunning = false;
+    
     for (const key in players) {
         try { players[key].stop(); } catch(e) {}
     }
     players = {};
+    
     for (const key in connections) {
         try { connections[key].destroy(); } catch(e) {}
     }
     connections = {};
+    
     for (const key in keepAliveIntervals) {
         clearInterval(keepAliveIntervals[key]);
     }
     keepAliveIntervals = {};
-    clients.forEach(c => { try { c.destroy(); } catch(e) {} });
+    
+    clients.forEach(c => { 
+        try { c.destroy(); } catch(e) {} 
+    });
     clients = [];
+    
     io.emit('bots_stopped');
-    console.log('⛔ All bots stopped');
+    console.log('✅ All bots stopped');
 }
 
 // ─── JOIN SERVER ───
@@ -773,6 +780,8 @@ app.post('/api/command', async (req, res) => {
 
 // ─── SOCKET ───
 io.on('connection', (socket) => {
+    console.log('🔌 Client connected');
+    
     socket.emit('status_update', {
         isRunning: isBotRunning,
         botCount: clients.length,
@@ -785,16 +794,22 @@ io.on('connection', (socket) => {
         const newTokens = data.tokens;
         if (newTokens && newTokens.length > 0) {
             dashboardTokens = newTokens.filter(t => t && t.length > 10);
+            console.log('📊 Received ' + dashboardTokens.length + ' tokens');
             startBots();
         }
     });
 
     socket.on('start_bots', startBots);
     socket.on('stop_bots', stopBots);
+    
+    socket.on('disconnect', () => {
+        console.log('🔌 Client disconnected');
+    });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log('\n🌸 RINTU: http://localhost:' + PORT);
-    console.log('⚡ TOKENS AUTO-LOAD! Just paste and save!\n');
+    console.log('✅ Server started!');
+    console.log('📊 Waiting for tokens...\n');
 });
