@@ -1,7 +1,7 @@
 {
-  "name": "rintu-ultimate-final",
+  "name": "rintu-simple",
   "version": "1.0.0",
-  "description": "🌸 RINTU ULTIMATE - Everything Works",
+  "description": "🌸 RINTU SIMPLE - Everything Works",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
