@@ -152,7 +152,7 @@ const HTML = `<!DOCTYPE html>
             background: rgba(0,0,0,0.4);
             border-radius: 14px;
             padding: 14px;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
             font-family: 'Courier New', monospace;
             font-size: 0.75em;
@@ -199,7 +199,7 @@ const HTML = `<!DOCTYPE html>
 <div class="container">
     <div class="header">
         <h1>🌸 RINTU</h1>
-        <div class="sub">✦ Working Dashboard ✦</div>
+        <div class="sub">✦ DEBUG VERSION ✦</div>
     </div>
 
     <div class="card">
@@ -269,7 +269,7 @@ const HTML = `<!DOCTYPE html>
     <div class="card">
         <div class="card-title">📋 Log</div>
         <div class="log-area" id="logArea">
-            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU ready</span></div>
+            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU DEBUG ready</span></div>
         </div>
     </div>
 </div>
@@ -387,27 +387,40 @@ socket.on('bot_status', (d) => addLog('🤖 Bot ' + d.index + '/' + d.total + ':
 socket.on('audio_update', (d) => { if(d.title) document.getElementById('nowPlaying').textContent = d.title; if(d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume); });
 socket.on('command_response', (d) => addLog('✦ ' + d.command + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp'));
 
-// ─── START VIA HTTP (FIXED) ───
+// ─── START VIA HTTP ───
 document.getElementById('startBtn').onclick = function() {
+    addLog('🔄 START button clicked!', 'sys');
+    
     const tokens = getTokens();
+    addLog('📊 Found ' + tokens.length + ' tokens', 'sys');
+    
     if (tokens.length === 0) {
         showToast('❌ Add tokens first!', 'error');
         addLog('❌ No tokens to start', 'err');
         return;
     }
     
-    // Save tokens first
-    localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    addLog('💾 Saved tokens to storage', 'sys');
+    // Show first token (masked) for debugging
+    const firstToken = tokens[0];
+    const maskedToken = firstToken.substring(0, 10) + '...' + firstToken.substring(firstToken.length - 5);
+    addLog('🔑 First token: ' + maskedToken, 'sys');
     
-    // Send via HTTP POST - THIS IS THE FIX!
+    localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
+    addLog('💾 Saved tokens to localStorage', 'sys');
+    
+    addLog('📤 Sending HTTP request to /api/start-bots...', 'sys');
+    
     fetch('/api/start-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokens: tokens })
     })
-    .then(r => r.json())
+    .then(response => {
+        addLog('📥 Received response! Status: ' + response.status, 'sys');
+        return response.json();
+    })
     .then(data => {
+        addLog('📦 Response data: ' + JSON.stringify(data), 'sys');
         if (data.success) {
             addLog('🚀 ' + data.count + ' bots starting...', 'resp');
             showToast('🚀 Starting ' + data.count + ' bots...', 'success');
@@ -417,13 +430,15 @@ document.getElementById('startBtn').onclick = function() {
         }
     })
     .catch(e => {
-        addLog('❌ Error: ' + e.message, 'err');
+        addLog('❌ FETCH ERROR: ' + e.message, 'err');
         showToast('❌ Error: ' + e.message, 'error');
     });
 };
 
-// ─── STOP VIA HTTP ───
+// ─── STOP ───
 document.getElementById('stopBtn').onclick = function() {
+    addLog('🔄 STOP button clicked!', 'sys');
+    
     fetch('/api/stop-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -539,7 +554,11 @@ let currentTitle = 'Nothing playing';
 let currentVolume = 1.0;
 let keepAliveIntervals = {};
 
+console.log('🚀 SERVER STARTED - DEBUG MODE');
+
 function startBots(tokens) {
+    console.log('🔥 startBots() called with', tokens ? tokens.length : 0, 'tokens');
+    
     if (isBotRunning) {
         console.log('⚠️ Bots already running');
         return { success: false, error: 'Bots already running' };
@@ -555,6 +574,7 @@ function startBots(tokens) {
     isBotRunning = true;
     
     dashboardTokens.forEach((token, index) => {
+        console.log('🔑 Logging in bot ' + (index + 1) + '...');
         const client = new Client({ 
             checkUpdate: false,
             ws: { properties: { $browser: 'Discord iOS' } }
@@ -562,7 +582,7 @@ function startBots(tokens) {
 
         client.on('ready', () => {
             const tag = client.user ? client.user.tag : 'Unknown';
-            console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
+            console.log('✅ Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag + ' ONLINE!');
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
         });
 
@@ -577,10 +597,13 @@ function startBots(tokens) {
     });
     
     io.emit('bots_started', { count: dashboardTokens.length });
+    console.log('✅ startBots() completed, emitted bots_started event');
     return { success: true, count: dashboardTokens.length };
 }
 
 function stopBots() {
+    console.log('🔥 stopBots() called');
+    
     if (!isBotRunning) {
         console.log('⚠️ Bots not running');
         return { success: false, error: 'Bots not running' };
@@ -618,16 +641,24 @@ function stopBots() {
 
 // START BOTS VIA HTTP
 app.post('/api/start-bots', (req, res) => {
+    console.log('📨 POST /api/start-bots received');
+    console.log('📦 Body:', req.body);
+    
     const { tokens } = req.body;
     if (!tokens || tokens.length === 0) {
+        console.log('❌ No tokens in request');
         return res.json({ success: false, error: 'No tokens provided' });
     }
+    
+    console.log('✅ Received ' + tokens.length + ' tokens');
     const result = startBots(tokens);
+    console.log('📤 Response:', result);
     res.json(result);
 });
 
 // STOP BOTS VIA HTTP
 app.post('/api/stop-bots', (req, res) => {
+    console.log('📨 POST /api/stop-bots received');
     const result = stopBots();
     res.json(result);
 });
@@ -856,7 +887,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log('\n🌸 RINTU: http://localhost:' + PORT);
+    console.log('\n🌸 RINTU DEBUG: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 Waiting for tokens...\n');
+    console.log('📊 Check Railway logs to see what happens when you click START!\n');
 });
