@@ -2,7 +2,9 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const { Client } = require('discord.js-selfbot-v13');
+const { Client, StreamType } = require('discord.js-selfbot-v13');
+const ytdl = require('ytdl-core');
+const ffmpeg = require('ffmpeg-static');
 const axios = require('axios');
 
 const app = express();
@@ -17,10 +19,13 @@ app.use(express.urlencoded({ extended: true }));
 var dashboardTokens = [];
 var isBotRunning = false;
 var clients = [];
-var voiceStates = {};
+var voiceConnections = {};
+var players = {};
+var currentTitle = 'Nothing playing';
+var currentVolume = 1.0;
 var keepAliveIntervals = {};
 
-console.log('🚀 SERVER STARTED - BYPASS MODE');
+console.log('🚀 RINTU ULTIMATE STARTED!');
 
 // ─── START BOTS ───
 function startBots(tokens) {
@@ -46,7 +51,7 @@ function startBots(tokens) {
 
             client.on('ready', function() {
                 var tag = client.user ? client.user.tag : 'Unknown';
-                console.log('✅ Bot ' + (index + 1) + ': ' + tag);
+                console.log('✅ Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
                 io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
             });
 
@@ -69,8 +74,18 @@ function stopBots() {
     
     isBotRunning = false;
     
-    for (var key in keepAliveIntervals) {
-        clearInterval(keepAliveIntervals[key]);
+    for (var key in players) {
+        try { players[key].stop(); } catch(e) {}
+    }
+    players = {};
+    
+    for (var key2 in voiceConnections) {
+        try { voiceConnections[key2].disconnect(); } catch(e) {}
+    }
+    voiceConnections = {};
+    
+    for (var key3 in keepAliveIntervals) {
+        clearInterval(keepAliveIntervals[key3]);
     }
     keepAliveIntervals = {};
     
@@ -78,88 +93,50 @@ function stopBots() {
         try { clients[i].destroy(); } catch(e) {}
     }
     clients = [];
-    voiceStates = {};
     
     io.emit('bots_stopped');
     return { success: true };
 }
 
-// ─── BYPASS: JOIN VOICE USING RAW DISCORD API ───
-async function bypassJoinVoice(token, channelId, guildId) {
+// ─── JOIN VOICE ───
+async function joinVoice(client, channelId) {
     try {
-        // Get the voice gateway URL
-        const gatewayResponse = await axios.get('https://discord.com/api/v9/gateway');
-        const gatewayUrl = gatewayResponse.data.url;
+        console.log('🔄 Joining voice channel: ' + channelId);
         
-        // Get voice region and server info
-        const channelInfo = await axios.get(`https://discord.com/api/v9/channels/${channelId}`, {
-            headers: { 'Authorization': token }
-        });
-        
-        const guildInfo = await axios.get(`https://discord.com/api/v9/guilds/${guildId}`, {
-            headers: { 'Authorization': token }
-        });
-        
-        // Get voice state
-        const voiceState = await axios.patch(
-            `https://discord.com/api/v9/guilds/${guildId}/voice-states/@me`,
-            {
-                channel_id: channelId,
-                self_mute: false,
-                self_deaf: false
-            },
-            {
-                headers: { 
-                    'Authorization': token,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        
-        console.log('✅ Voice state updated for bot');
-        return true;
-    } catch (err) {
-        console.log('❌ Bypass join error:', err.response?.data || err.message);
-        return false;
-    }
-}
-
-// ─── ALTERNATIVE: USE BUILT-IN VOICE ───
-async function joinVoiceBuiltIn(client, channelId) {
-    try {
-        const channel = await client.channels.fetch(channelId);
+        // First check if channel exists
+        var channel = await client.channels.fetch(channelId);
         if (!channel) {
             console.log('❌ Channel not found');
             return false;
         }
         
-        // Check if already in voice
+        // Check if already connected
         if (client.voice.connection) {
             console.log('⚠️ Already in voice, reconnecting...');
-            client.voice.disconnect();
+            try { client.voice.disconnect(); } catch(e) {}
             await sleep(1000);
         }
         
-        // Connect using built-in method
-        const connection = client.voice.connect(channelId);
-        console.log('✅ Connected to voice using built-in');
+        // Connect to voice
+        var connection = client.voice.connect(channelId);
+        console.log('✅ Connected to voice!');
         
-        // Keep alive
-        const intervalId = setInterval(() => {
+        // Set up keep-alive
+        var intervalId = setInterval(function() {
             try {
-                if (client.voice.connection) {
+                if (client.voice && client.voice.connection) {
                     client.voice.connection.setSpeaking(true);
-                    setTimeout(() => {
+                    setTimeout(function() {
                         try { client.voice.connection.setSpeaking(false); } catch(e) {}
                     }, 100);
                 }
             } catch(e) {}
-        }, 10000);
+        }, 15000);
         
         keepAliveIntervals[Date.now()] = intervalId;
         return true;
     } catch (err) {
-        console.log('❌ Built-in join error:', err.message);
+        console.log('❌ Join voice error:', err.message);
         return false;
     }
 }
@@ -204,8 +181,10 @@ app.post('/api/join-server', async function(req, res) {
         if (!client) continue;
         try {
             var inviteObj = await client.fetchInvite(inviteCode);
-            await client.acceptInvite(inviteCode);
-            results.push('✅ Bot ' + (i + 1) + ' joined: ' + (inviteObj.guild?.name || 'Server'));
+            if (inviteObj) {
+                await client.acceptInvite(inviteCode);
+                results.push('✅ Bot ' + (i + 1) + ' joined: ' + (inviteObj.guild?.name || 'Server'));
+            }
         } catch (err) {
             results.push('❌ Bot ' + (i + 1) + ' failed: ' + err.message);
         }
@@ -221,8 +200,8 @@ app.get('/api/status', function(req, res) {
         isRunning: isBotRunning,
         botCount: clients.length,
         totalTokens: dashboardTokens.length,
-        currentTitle: 'Nothing playing',
-        volume: 100
+        currentTitle: currentTitle,
+        volume: Math.round(currentVolume * 100)
     });
 });
 
@@ -236,10 +215,10 @@ app.post('/api/command', async function(req, res) {
     var cmd = parts[0];
     var args = parts.slice(1).join(' ');
 
-    console.log('📨 Command:', cmd, 'Args:', args);
+    console.log('📨 Command:', cmd);
 
     try {
-        // ─── JOIN VOICE (BY CHANNEL ID) ───
+        // ─── JOIN VOICE (CHANNEL ID) ───
         if (!isNaN(cmd) && cmd.length >= 10) {
             var channelId = cmd;
             var joined = 0;
@@ -249,31 +228,11 @@ app.post('/api/command', async function(req, res) {
                 var client = clients[i];
                 if (!client) continue;
                 
-                console.log('🔄 Bot ' + (i + 1) + ' joining voice...');
-                
-                try {
-                    // Try built-in first
-                    var success = await joinVoiceBuiltIn(client, channelId);
-                    if (success) {
-                        joined++;
-                    } else {
-                        // Try bypass method
-                        console.log('⚠️ Built-in failed, trying bypass...');
-                        var token = dashboardTokens[i];
-                        var guildId = client.guilds.cache.first()?.id;
-                        if (guildId) {
-                            var bypassSuccess = await bypassJoinVoice(token, channelId, guildId);
-                            if (bypassSuccess) {
-                                joined++;
-                            } else {
-                                failed++;
-                            }
-                        } else {
-                            failed++;
-                        }
-                    }
-                } catch (err) {
-                    console.log('❌ Bot ' + (i + 1) + ' error:', err.message);
+                var success = await joinVoice(client, channelId);
+                if (success) {
+                    voiceConnections[i] = client.voice.connection;
+                    joined++;
+                } else {
                     failed++;
                 }
             }
@@ -281,10 +240,10 @@ app.post('/api/command', async function(req, res) {
             if (joined > 0) {
                 response = '✅ ' + joined + '/' + clients.length + ' bots joined voice!';
                 if (failed > 0) {
-                    response += ' ⚠️ ' + failed + ' bots failed';
+                    response += ' ⚠️ ' + failed + ' failed';
                 }
             } else {
-                response = '❌ All bots failed to join. Try using a different method or check server permissions.';
+                response = '❌ All bots failed to join. Make sure they are in the server and the channel ID is correct.';
             }
         }
         
@@ -294,42 +253,52 @@ app.post('/api/command', async function(req, res) {
                 response = '❌ Start bots first!';
             } else {
                 var played = 0;
+                var failedPlay = 0;
+                
                 for (var i2 = 0; i2 < clients.length; i2++) {
                     var client2 = clients[i2];
                     if (!client2) continue;
                     if (!client2.voice.connection) {
-                        console.log('Bot ' + (i2 + 1) + ' not in voice, skipping');
+                        failedPlay++;
                         continue;
                     }
                     
                     try {
-                        // Get audio URL using ytdl via API
-                        var audioInfo = await axios.get(`https://api.vevioz.com/api/button/mp3/${encodeURIComponent(args)}`);
-                        if (audioInfo.data && audioInfo.data.download) {
-                            var audioUrl = audioInfo.data.download;
-                            
-                            // Play using the connection
-                            var dispatcher = client2.voice.connection.play(audioUrl, {
-                                type: 'unknown',
-                                volume: 1.0
-                            });
-                            
-                            dispatcher.on('finish', function() {
-                                console.log('✅ Playback finished');
-                            });
-                            
-                            played++;
-                            io.emit('audio_update', { status: 'playing', title: '🎵 ' + args });
-                        }
+                        // Get audio stream
+                        var stream = ytdl(args, {
+                            filter: 'audioonly',
+                            quality: 'highestaudio',
+                            highWaterMark: 1 << 25
+                        });
+                        
+                        // Play using voice connection
+                        var dispatcher = client2.voice.connection.play(stream, {
+                            type: 'opus',
+                            volume: currentVolume
+                        });
+                        
+                        dispatcher.on('finish', function() {
+                            console.log('✅ Playback finished');
+                            io.emit('audio_update', { status: 'finished', title: 'Nothing playing' });
+                        });
+                        
+                        players[i2] = dispatcher;
+                        played++;
+                        currentTitle = '🎵 Playing';
+                        io.emit('audio_update', { status: 'playing', title: currentTitle, volume: Math.round(currentVolume * 100) });
                     } catch (err) {
                         console.log('❌ Play error bot ' + (i2 + 1) + ':', err.message);
+                        failedPlay++;
                     }
                 }
                 
                 if (played > 0) {
-                    response = '🎵 Playing on ' + played + ' bots!';
+                    response = '🎵 Playing on ' + played + '/' + clients.length + ' bots!';
+                    if (failedPlay > 0) {
+                        response += ' ⚠️ ' + failedPlay + ' bots not in voice';
+                    }
                 } else {
-                    response = '❌ No bots in voice or audio error';
+                    response = '❌ No bots in voice channel! Join voice first.';
                 }
             }
         }
@@ -337,33 +306,73 @@ app.post('/api/command', async function(req, res) {
         // ─── STOP ───
         else if (cmd === 'stop') {
             var stopped = 0;
-            for (var i3 = 0; i3 < clients.length; i3++) {
-                var client3 = clients[i3];
-                if (!client3) continue;
-                if (client3.voice.connection && client3.voice.connection.dispatcher) {
-                    try {
-                        client3.voice.connection.dispatcher.stop();
-                        stopped++;
-                    } catch(e) {}
-                }
+            for (var key in players) {
+                try {
+                    players[key].stop();
+                    stopped++;
+                } catch(e) {}
             }
+            players = {};
             response = '⏹️ Stopped on ' + stopped + ' bots';
             io.emit('audio_update', { status: 'stopped', title: 'Nothing playing' });
+        }
+        
+        // ─── PAUSE ───
+        else if (cmd === 'pause') {
+            var paused = 0;
+            for (var key in players) {
+                try {
+                    players[key].pause();
+                    paused++;
+                } catch(e) {}
+            }
+            response = '⏸️ Paused on ' + paused + ' bots';
+        }
+        
+        // ─── RESUME ───
+        else if (cmd === 'resume') {
+            var resumed = 0;
+            for (var key in players) {
+                try {
+                    players[key].resume();
+                    resumed++;
+                } catch(e) {}
+            }
+            response = '▶️ Resumed on ' + resumed + ' bots';
+        }
+        
+        // ─── VOLUME ───
+        else if (cmd === 'volume' && args) {
+            var vol = parseInt(args);
+            if (isNaN(vol) || vol < 1 || vol > 2000) {
+                response = '❌ Volume must be 1-2000';
+            } else {
+                currentVolume = vol / 100;
+                for (var key in players) {
+                    try {
+                        players[key].setVolume(currentVolume);
+                    } catch(e) {}
+                }
+                response = '🔊 Volume set to ' + vol + '%';
+                io.emit('audio_update', { volume: Math.round(currentVolume * 100) });
+            }
         }
         
         // ─── LEAVE ───
         else if (cmd === 'leave') {
             var left = 0;
-            for (var i4 = 0; i4 < clients.length; i4++) {
-                var client4 = clients[i4];
-                if (!client4) continue;
-                if (client4.voice.connection) {
+            for (var i3 = 0; i3 < clients.length; i3++) {
+                var client3 = clients[i3];
+                if (!client3) continue;
+                if (client3.voice.connection) {
                     try {
-                        client4.voice.disconnect();
+                        client3.voice.disconnect();
                         left++;
                     } catch(e) {}
                 }
             }
+            voiceConnections = {};
+            players = {};
             for (var key in keepAliveIntervals) {
                 clearInterval(keepAliveIntervals[key]);
             }
@@ -373,11 +382,11 @@ app.post('/api/command', async function(req, res) {
         
         // ─── HELP ───
         else if (cmd === 'help') {
-            response = 'Commands: <channel_id> (join voice), play <url>, stop, leave, help';
+            response = 'Commands:\n<channel_id> - Join voice\nplay <url> - Play music\nstop - Stop playback\npause - Pause\nresume - Resume\nvolume <1-2000> - Set volume\nleave - Leave voice';
         }
         
         else {
-            response = '❌ Unknown command. Try: <channel_id> (join voice), play <url>, stop, leave';
+            response = '❌ Unknown command. Try: <channel_id>, play <url>, stop, pause, resume, volume, leave';
         }
     } catch (err) {
         response = '❌ Error: ' + err.message;
@@ -395,14 +404,14 @@ io.on('connection', function(socket) {
         isRunning: isBotRunning,
         botCount: clients.length,
         totalTokens: dashboardTokens.length,
-        currentTitle: 'Nothing playing',
-        volume: 100
+        currentTitle: currentTitle,
+        volume: Math.round(currentVolume * 100)
     });
 });
 
 var PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
-    console.log('\n🌸 RINTU BYPASS: http://localhost:' + PORT);
+    console.log('\n🌸 RINTU ULTIMATE: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 Commands: <channel_id>, play <url>, stop, leave\n');
+    console.log('📊 ' + dashboardTokens.length + ' tokens loaded\n');
 });
