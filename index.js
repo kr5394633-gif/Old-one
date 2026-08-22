@@ -1,16 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const fs = require("fs");
 const path = require("path");
-
-// Patch for selfbot
-try {
-    const ClientUserSettingManager = require("./node_modules/discord.js-selfbot-v13/src/managers/ClientUserSettingManager.js");
-    if (ClientUserSettingManager && ClientUserSettingManager.prototype) {
-        ClientUserSettingManager.prototype._patch = function(data) { return this; };
-    }
-} catch (e) {}
 
 const { Client } = require("discord.js-selfbot-v13");
 const { spawn } = require("child_process");
@@ -23,8 +14,9 @@ const io = socketIo(server);
 
 app.use(express.json());
 
-// ─── HTML ───
-const HTML = `<!DOCTYPE html>
+// ─── HTML AS A STRING (NOT TEMPLATE LITERAL) ───
+const HTML = `
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -38,18 +30,13 @@ const HTML = `<!DOCTYPE html>
             background: #0a0a1a;
             min-height: 100vh;
             padding: 16px;
-            background-image: 
-                radial-gradient(ellipse at 10% 20%, rgba(120, 80, 255, 0.15) 0%, transparent 50%),
-                radial-gradient(ellipse at 90% 80%, rgba(255, 50, 150, 0.12) 0%, transparent 50%);
+            background-image: radial-gradient(ellipse at 10% 20%, rgba(120, 80, 255, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 90% 80%, rgba(255, 50, 150, 0.12) 0%, transparent 50%);
             display: flex;
             justify-content: center;
             align-items: flex-start;
         }
         .container { max-width: 850px; width: 100%; margin: 0 auto; }
-        .header {
-            text-align: center;
-            padding: 30px 0 25px;
-        }
+        .header { text-align: center; padding: 30px 0 25px; }
         .header h1 {
             font-family: 'Orbitron', monospace;
             font-size: 2.8em;
@@ -417,6 +404,7 @@ const HTML = `<!DOCTYPE html>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ─── ALL JAVASCRIPT ───
 var logArea = document.getElementById('logArea');
 var statusDot = document.getElementById('statusDot');
 var statusText = document.getElementById('statusText');
@@ -428,9 +416,10 @@ var tokenInput = document.getElementById('tokenInput');
 var tokenCount = document.getElementById('tokenCount');
 var validCount = document.getElementById('validCount');
 
+// ─── TOKEN FUNCTIONS ───
 function updateTokenStats() {
     var text = tokenInput.value;
-    var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
+    var lines = text.split('\\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
     tokenCount.textContent = lines.length;
     var valid = lines.filter(function(l) { return l.startsWith('mfa.') || l.length > 20; });
     validCount.textContent = valid.length;
@@ -440,39 +429,54 @@ tokenInput.addEventListener('input', updateTokenStats);
 
 function getTokensFromInput() {
     var text = tokenInput.value;
-    var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
+    var lines = text.split('\\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 10; });
     return lines;
 }
 
+// ─── SAVE TOKENS ───
 document.getElementById('saveTokensBtn').addEventListener('click', function() {
     var tokens = getTokensFromInput();
-    if (tokens.length === 0) { addLog('❌ No tokens to save!', 'err'); return; }
+    if (tokens.length === 0) {
+        addLog('❌ No tokens to save!', 'err');
+        return;
+    }
     try {
         localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
         addLog('💾 Saved ' + tokens.length + ' tokens', 'resp');
-    } catch(e) { addLog('❌ Error saving: ' + e.message, 'err'); }
+    } catch(e) {
+        addLog('❌ Error saving: ' + e.message, 'err');
+    }
 });
 
+// ─── LOAD TOKENS ───
 document.getElementById('loadTokensBtn').addEventListener('click', function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
-        if (!saved) { addLog('❌ No saved tokens found', 'err'); return; }
+        if (!saved) {
+            addLog('❌ No saved tokens found', 'err');
+            return;
+        }
         var tokens = JSON.parse(saved);
         if (tokens && tokens.length > 0) {
-            tokenInput.value = tokens.join('\n');
+            tokenInput.value = tokens.join('\\n');
             updateTokenStats();
             addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
+        } else {
+            addLog('❌ No valid tokens in save', 'err');
         }
-    } catch(e) { addLog('❌ Error loading: ' + e.message, 'err'); }
+    } catch(e) {
+        addLog('❌ Error loading: ' + e.message, 'err');
+    }
 });
 
+// ─── AUTO LOAD ON PAGE START ───
 window.addEventListener('load', function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
         if (saved) {
             var tokens = JSON.parse(saved);
             if (tokens && tokens.length > 0) {
-                tokenInput.value = tokens.join('\n');
+                tokenInput.value = tokens.join('\\n');
                 updateTokenStats();
                 addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
             }
@@ -480,6 +484,7 @@ window.addEventListener('load', function() {
     } catch(e) {}
 });
 
+// ─── LOGGING ───
 function addLog(msg, type) {
     if (!type) type = 'sys';
     var time = new Date().toLocaleTimeString();
@@ -490,6 +495,7 @@ function addLog(msg, type) {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
+// ─── SOCKET ───
 var socket = io();
 
 function updateStatus(running, count, title, vol) {
@@ -559,10 +565,16 @@ socket.on('command_response', function(data) {
     addLog('✦ ' + data.command + ' → ' + data.response, isErr ? 'err' : 'resp');
 });
 
+// ─── BUTTONS ───
 document.getElementById('startBtn').addEventListener('click', function() {
     var tokens = getTokensFromInput();
-    if (tokens.length === 0) { addLog('❌ Add tokens first!', 'err'); return; }
-    try { localStorage.setItem('rintu_tokens', JSON.stringify(tokens)); } catch(e) {}
+    if (tokens.length === 0) {
+        addLog('❌ Add tokens first!', 'err');
+        return;
+    }
+    try {
+        localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
+    } catch(e) {}
     socket.emit('start_bots_with_tokens', { tokens: tokens });
     addLog('🚀 Starting ' + tokens.length + ' bots...', 'sys');
 });
@@ -578,6 +590,7 @@ document.getElementById('blastBtn').addEventListener('click', function() {
     addLog('💥💥 BLAST MODE ACTIVATED! MAXIMUM VOLUME!', 'resp');
 });
 
+// ─── SEND COMMAND ───
 function sendCmd(cmd) {
     if (!cmd) return;
     fetch('/api/command', {
@@ -592,7 +605,9 @@ function sendCmd(cmd) {
             addLog('✦ ' + cmd + ' → ' + data.response, isErr ? 'err' : 'resp');
         }
     })
-    .catch(function(e) { addLog('❌ Error: ' + e.message, 'err'); });
+    .catch(function(e) {
+        addLog('❌ Error: ' + e.message, 'err');
+    });
 }
 
 document.getElementById('sendBtn').addEventListener('click', function() {
@@ -605,9 +620,12 @@ document.getElementById('sendBtn').addEventListener('click', function() {
 });
 
 document.getElementById('cmdInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') { document.getElementById('sendBtn').click(); }
+    if (e.key === 'Enter') {
+        document.getElementById('sendBtn').click();
+    }
 });
 
+// ─── QUICK COMMANDS ───
 var cmdBtns = document.querySelectorAll('.cmd-btn');
 for (var i = 0; i < cmdBtns.length; i++) {
     cmdBtns[i].addEventListener('click', function() {
@@ -621,23 +639,32 @@ for (var i = 0; i < cmdBtns.length; i++) {
     });
 }
 
-fetch('/api/status').then(function(r) { return r.json(); }).then(function(data) {
-    updateStatus(data.isRunning, data.botCount, data.currentTitle, data.volume);
-    updateEffects(data);
-}).catch(console.error);
-
-setInterval(function() {
-    fetch('/api/status').then(function(r) { return r.json(); }).then(function(data) {
+// ─── INITIAL STATUS ───
+fetch('/api/status')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        updateStatus(data.isRunning, data.botCount, data.currentTitle, data.volume);
         updateEffects(data);
-        if (data.currentTitle && data.currentTitle !== 'Nothing playing') {
-            nowPlaying.textContent = data.currentTitle;
-        }
-        if (data.volume !== undefined) volDisplay.textContent = Math.round(data.volume);
-    }).catch(console.error);
+    })
+    .catch(console.error);
+
+// ─── POLL FOR UPDATES ───
+setInterval(function() {
+    fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            updateEffects(data);
+            if (data.currentTitle && data.currentTitle !== 'Nothing playing') {
+                nowPlaying.textContent = data.currentTitle;
+            }
+            if (data.volume !== undefined) volDisplay.textContent = Math.round(data.volume);
+        })
+        .catch(console.error);
 }, 3000);
 </script>
 </body>
-</html>`;
+</html>
+`;
 
 // ─── SERVE HTML ───
 app.get('/', function(req, res) {
@@ -775,8 +802,6 @@ function startFFmpegStream(inputSource) {
         'pipe:1'
     ]);
 
-    currentFFmpegProcess.stdout.on('error', function(err) {});
-
     for (var i = 0; i < clients.length; i++) {
         var client = clients[i];
         if (!client) continue;
@@ -823,22 +848,26 @@ function startBots() {
     }
     
     isBotRunning = true;
-    dashboardTokens.forEach(function(token, index) {
-        var client = new Client({ 
-            checkUpdate: false
-        });
-        
-        client.on('ready', function() {
-            var tag = client.user ? client.user.tag : 'Unknown';
-            console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
-            io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag, status: 'online' });
-        });
-        
-        client.login(token).catch(function(err) {
-            console.log('❌ Bot ' + (index + 1) + ' login failed: ' + err.message);
-        });
-        clients.push(client);
-    });
+    
+    for (var i = 0; i < dashboardTokens.length; i++) {
+        (function(index) {
+            var token = dashboardTokens[index];
+            var client = new Client({ checkUpdate: false });
+            
+            client.on('ready', function() {
+                var tag = client.user ? client.user.tag : 'Unknown';
+                console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
+                io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag, status: 'online' });
+            });
+            
+            client.login(token).catch(function(err) {
+                console.log('❌ Bot ' + (index + 1) + ' login failed: ' + err.message);
+            });
+            
+            clients.push(client);
+        })(i);
+    }
+    
     io.emit('bots_started', { count: dashboardTokens.length });
 }
 
@@ -859,9 +888,9 @@ function stopBots() {
     
     activeResources = {};
     
-    clients.forEach(function(c) { 
-        try { c.destroy(); } catch(e){} 
-    });
+    for (var i = 0; i < clients.length; i++) {
+        try { clients[i].destroy(); } catch(e) {}
+    }
     clients = [];
     currentUrl = null;
     currentChannelId = null;
@@ -870,7 +899,6 @@ function stopBots() {
 }
 
 // ─── API ROUTES ───
-
 app.get('/api/status', function(req, res) {
     res.json({
         isRunning: isBotRunning,
