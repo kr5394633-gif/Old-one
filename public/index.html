@@ -38,7 +38,7 @@
         .card-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.3); margin-bottom: 14px; }
         .token-area textarea {
             width: 100%;
-            min-height: 100px;
+            min-height: 120px;
             padding: 14px;
             border-radius: 14px;
             border: 1px solid rgba(255,255,255,0.06);
@@ -169,6 +169,12 @@
             from { opacity: 0; transform: translateX(-50%) translateY(20px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
+        .debug-info {
+            font-size: 0.7em;
+            color: rgba(255,255,255,0.2);
+            padding: 8px;
+            text-align: center;
+        }
         @media (max-width: 600px) {
             .header h1 { font-size: 1.8em; }
             .status-bar { flex-direction: column; }
@@ -183,18 +189,22 @@
 <div class="container">
     <div class="header">
         <h1>🌸 RINTU</h1>
-        <div class="sub">✦ FINAL WORKING ✦</div>
+        <div class="sub">✦ ULTIMATE ✦</div>
     </div>
 
     <div class="card">
-        <div class="card-title">🔑 Tokens</div>
+        <div class="card-title">🔑 Tokens (<span id="tokenCountDisplay">0</span> loaded)</div>
         <div class="token-area">
             <textarea id="tokenInput" placeholder="Paste tokens (one per line)"></textarea>
             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                <div class="token-stats"><span>📊 <span class="count" id="tokenCount">0</span></span></div>
+                <div class="token-stats">
+                    <span>📊 <span class="count" id="tokenCount">0</span></span>
+                    <span>✅ <span class="count" id="validCount">0</span> valid</span>
+                </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-save" id="saveBtn">💾 Save</button>
                     <button class="btn btn-glow" id="loadBtn">📂 Load</button>
+                    <button class="btn btn-danger" id="clearBtn">🗑️ Clear</button>
                 </div>
             </div>
         </div>
@@ -253,15 +263,19 @@
     <div class="card">
         <div class="card-title">📋 Log</div>
         <div class="log-area" id="logArea">
-            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU FINAL ready</span></div>
+            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU ULTIMATE ready</span></div>
         </div>
     </div>
+    <div class="debug-info">🛠️ DEBUG: Tokens will auto-load. Click START to login bots.</div>
 </div>
 
 <div id="toast" class="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ─── ALL JAVASCRIPT ───
+var socket = io();
+
 function showToast(msg, type) {
     var toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -276,20 +290,30 @@ function getTokens() {
     var result = [];
     for (var i = 0; i < lines.length; i++) {
         var token = lines[i].trim();
-        if (token.length > 10) {
+        // Accept any token longer than 10 chars (mfa. or normal tokens)
+        if (token.length > 10 && token !== '') {
             result.push(token);
         }
     }
     return result;
 }
 
-function updateTokenCount() {
+function updateTokenStats() {
     var tokens = getTokens();
     document.getElementById('tokenCount').textContent = tokens.length;
+    document.getElementById('tokenCountDisplay').textContent = tokens.length;
+    var valid = 0;
+    for (var i = 0; i < tokens.length; i++) {
+        if (tokens[i].startsWith('mfa.') || tokens[i].length > 20) {
+            valid++;
+        }
+    }
+    document.getElementById('validCount').textContent = valid;
 }
 
-document.getElementById('tokenInput').addEventListener('input', updateTokenCount);
+document.getElementById('tokenInput').addEventListener('input', updateTokenStats);
 
+// ─── SAVE ───
 document.getElementById('saveBtn').onclick = function() {
     var tokens = getTokens();
     if (tokens.length === 0) {
@@ -299,12 +323,13 @@ document.getElementById('saveBtn').onclick = function() {
     try {
         localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
         showToast('Saved ' + tokens.length + ' tokens!', 'success');
-        addLog('Saved ' + tokens.length + ' tokens', 'resp');
+        addLog('💾 Saved ' + tokens.length + ' tokens', 'resp');
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
     }
 };
 
+// ─── LOAD ───
 document.getElementById('loadBtn').onclick = function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
@@ -315,15 +340,25 @@ document.getElementById('loadBtn').onclick = function() {
         var tokens = JSON.parse(saved);
         if (tokens && tokens.length > 0) {
             document.getElementById('tokenInput').value = tokens.join('\n');
-            updateTokenCount();
+            updateTokenStats();
             showToast('Loaded ' + tokens.length + ' tokens!', 'success');
-            addLog('Loaded ' + tokens.length + ' tokens', 'resp');
+            addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
     }
 };
 
+// ─── CLEAR ───
+document.getElementById('clearBtn').onclick = function() {
+    document.getElementById('tokenInput').value = '';
+    updateTokenStats();
+    localStorage.removeItem('rintu_tokens');
+    showToast('Cleared all tokens!', 'success');
+    addLog('🗑️ Tokens cleared', 'sys');
+};
+
+// ─── AUTO LOAD ───
 (function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
@@ -331,15 +366,16 @@ document.getElementById('loadBtn').onclick = function() {
             var tokens = JSON.parse(saved);
             if (tokens && tokens.length > 0) {
                 document.getElementById('tokenInput').value = tokens.join('\n');
-                updateTokenCount();
+                updateTokenStats();
                 setTimeout(function() {
-                    addLog('Auto-loaded ' + tokens.length + ' tokens', 'sys');
+                    addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
                 }, 500);
             }
         }
     } catch (e) {}
 })();
 
+// ─── LOG ───
 function addLog(msg, type) {
     if (!type) type = 'sys';
     var time = new Date().toLocaleTimeString();
@@ -350,8 +386,7 @@ function addLog(msg, type) {
     document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
 }
 
-var socket = io();
-
+// ─── STATUS ───
 function updateStatus(running, count, title) {
     var dot = document.getElementById('statusDot');
     var text = document.getElementById('statusText');
@@ -362,8 +397,9 @@ function updateStatus(running, count, title) {
     if (title) document.getElementById('nowPlaying').textContent = title;
 }
 
+// ─── SOCKET EVENTS ───
 socket.on('connect', function() {
-    addLog('Connected to server', 'sys');
+    addLog('🔌 Connected to server', 'sys');
 });
 
 socket.on('status_update', function(d) {
@@ -371,17 +407,17 @@ socket.on('status_update', function(d) {
 });
 
 socket.on('bots_started', function(d) {
-    addLog('Started ' + d.count + ' bots', 'resp');
+    addLog('🚀 Started ' + d.count + ' bots', 'resp');
     updateStatus(true, d.count);
 });
 
 socket.on('bots_stopped', function() {
-    addLog('Bots stopped', 'err');
+    addLog('⛔ Bots stopped', 'err');
     updateStatus(false, 0);
 });
 
 socket.on('bot_status', function(d) {
-    addLog('Bot ' + d.index + '/' + d.total + ': ' + d.tag, 'resp');
+    addLog('🤖 Bot ' + d.index + '/' + d.total + ': ' + d.tag, 'resp');
 });
 
 socket.on('audio_update', function(d) {
@@ -390,51 +426,49 @@ socket.on('audio_update', function(d) {
 });
 
 socket.on('command_response', function(d) {
-    var isErr = d.response.indexOf('❌') !== -1;
+    var isErr = d.response.indexOf('❌') !== -1 || d.response.indexOf('✖') !== -1;
     addLog(d.command + ' → ' + d.response, isErr ? 'err' : 'resp');
 });
 
+// ─── START ───
 document.getElementById('startBtn').onclick = function() {
-    addLog('START clicked!', 'sys');
+    addLog('▶️ START clicked!', 'sys');
     var tokens = getTokens();
-    addLog('Tokens: ' + tokens.length, 'sys');
+    addLog('📊 Found ' + tokens.length + ' tokens', 'sys');
     
     if (tokens.length === 0) {
         showToast('Add tokens first!', 'error');
-        addLog('No tokens', 'err');
+        addLog('❌ No tokens', 'err');
         return;
     }
     
     localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    addLog('Sending to server...', 'sys');
+    addLog('📤 Sending to server...', 'sys');
     
     fetch('/api/start-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokens: tokens })
     })
-    .then(function(response) {
-        addLog('Status: ' + response.status, 'sys');
-        return response.json();
-    })
+    .then(function(response) { return response.json(); })
     .then(function(data) {
-        addLog('Response: ' + JSON.stringify(data), 'sys');
         if (data.success) {
-            addLog('Starting ' + data.count + ' bots', 'resp');
+            addLog('✅ ' + data.count + ' bots starting', 'resp');
             showToast('Starting ' + data.count + ' bots!', 'success');
         } else {
-            addLog('Error: ' + data.error, 'err');
+            addLog('❌ ' + data.error, 'err');
             showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(function(e) {
-        addLog('Fetch error: ' + e.message, 'err');
+        addLog('❌ Error: ' + e.message, 'err');
         showToast('Error: ' + e.message, 'error');
     });
 };
 
+// ─── STOP ───
 document.getElementById('stopBtn').onclick = function() {
-    addLog('STOP clicked!', 'sys');
+    addLog('⏹️ STOP clicked!', 'sys');
     fetch('/api/stop-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -442,21 +476,23 @@ document.getElementById('stopBtn').onclick = function() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            addLog('Bots stopped', 'sys');
+            addLog('✅ Bots stopped', 'sys');
             showToast('Bots stopped', 'success');
         }
     })
     .catch(function(e) {
-        addLog('Error: ' + e.message, 'err');
+        addLog('❌ Error: ' + e.message, 'err');
     });
 };
 
+// ─── JOIN SERVER ───
 document.getElementById('joinBtn').onclick = function() {
     var invite = document.getElementById('inviteInput').value.trim();
     if (!invite) {
         showToast('Enter invite link!', 'error');
         return;
     }
+    addLog('🔗 Joining server: ' + invite, 'sys');
     fetch('/api/join-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -465,22 +501,23 @@ document.getElementById('joinBtn').onclick = function() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.message) {
-            addLog(data.message, 'resp');
+            addLog('✅ ' + data.message, 'resp');
             showToast('Joined server!', 'success');
         }
         if (data.error) {
-            addLog('Error: ' + data.error, 'err');
+            addLog('❌ ' + data.error, 'err');
             showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(function(e) {
-        addLog('Error: ' + e.message, 'err');
+        addLog('❌ Error: ' + e.message, 'err');
     });
 };
 
+// ─── COMMAND ───
 function sendCmd(cmd) {
     if (!cmd) return;
-    addLog('Sending command: ' + cmd, 'sys');
+    addLog('📤 Sending: ' + cmd, 'sys');
     fetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -489,13 +526,13 @@ function sendCmd(cmd) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
         if (d.response) {
-            var isErr = d.response.indexOf('❌') !== -1;
-            addLog(cmd + ' → ' + d.response, isErr ? 'err' : 'resp');
+            var isErr = d.response.indexOf('❌') !== -1 || d.response.indexOf('✖') !== -1;
+            addLog('📥 ' + d.response, isErr ? 'err' : 'resp');
             if (!isErr) showToast(d.response, 'success');
         }
     })
     .catch(function(e) {
-        addLog('Error: ' + e.message, 'err');
+        addLog('❌ Error: ' + e.message, 'err');
     });
 }
 
@@ -509,12 +546,13 @@ document.getElementById('cmdInput').onkeypress = function(e) {
     if (e.key === 'Enter') document.getElementById('sendBtn').click();
 };
 
+// ─── QUICK COMMANDS ───
 var btns = document.querySelectorAll('.cmd-btn');
 for (var i = 0; i < btns.length; i++) {
     btns[i].onclick = function() {
         var cmd = this.dataset.cmd;
         if (cmd === 'play') {
-            var url = prompt('Enter YouTube URL:');
+            var url = prompt('🎵 Enter YouTube URL or song name:');
             if (url) sendCmd('play ' + url);
             return;
         }
@@ -522,6 +560,7 @@ for (var i = 0; i < btns.length; i++) {
     };
 }
 
+// ─── INITIAL STATUS ───
 fetch('/api/status')
     .then(function(r) { return r.json(); })
     .then(function(d) {
