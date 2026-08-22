@@ -30,6 +30,7 @@ console.log('🚀 RINTU ULTIMATE STARTED!');
 // ─── START BOTS ───
 function startBots(tokens) {
     console.log('🔥 Starting ' + tokens.length + ' bots...');
+    console.log('📊 Tokens received:', tokens);
     
     if (isBotRunning) {
         return { success: false, error: 'Bots already running' };
@@ -38,12 +39,23 @@ function startBots(tokens) {
         return { success: false, error: 'No tokens' };
     }
 
+    // CLEAR old clients first
+    for (var i = 0; i < clients.length; i++) {
+        try { clients[i].destroy(); } catch(e) {}
+    }
+    clients = [];
+    
     dashboardTokens = tokens;
     isBotRunning = true;
+    
+    var totalTokens = dashboardTokens.length;
+    console.log('📊 Total tokens to login: ' + totalTokens);
     
     for (var i = 0; i < dashboardTokens.length; i++) {
         (function(index) {
             var token = dashboardTokens[index];
+            console.log('🔑 Logging in bot ' + (index + 1) + '/' + totalTokens);
+            
             var client = new Client({ 
                 checkUpdate: false,
                 ws: { properties: { $browser: 'Discord iOS' } }
@@ -51,12 +63,16 @@ function startBots(tokens) {
 
             client.on('ready', function() {
                 var tag = client.user ? client.user.tag : 'Unknown';
-                console.log('✅ Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
-                io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
+                console.log('✅ Bot ' + (index + 1) + '/' + totalTokens + ': ' + tag + ' ONLINE!');
+                io.emit('bot_status', { index: index + 1, total: totalTokens, tag: tag });
+            });
+
+            client.on('error', function(err) {
+                console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
             });
 
             client.login(token).catch(function(err) {
-                console.log('❌ Bot ' + (index + 1) + ' login failed');
+                console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
             });
             clients.push(client);
         })(i);
@@ -103,25 +119,21 @@ async function joinVoice(client, channelId) {
     try {
         console.log('🔄 Joining voice channel: ' + channelId);
         
-        // First check if channel exists
         var channel = await client.channels.fetch(channelId);
         if (!channel) {
             console.log('❌ Channel not found');
             return false;
         }
         
-        // Check if already connected
         if (client.voice.connection) {
             console.log('⚠️ Already in voice, reconnecting...');
             try { client.voice.disconnect(); } catch(e) {}
             await sleep(1000);
         }
         
-        // Connect to voice
         var connection = client.voice.connect(channelId);
         console.log('✅ Connected to voice!');
         
-        // Set up keep-alive
         var intervalId = setInterval(function() {
             try {
                 if (client.voice && client.voice.connection) {
@@ -149,11 +161,17 @@ function sleep(ms) {
 
 app.post('/api/start-bots', function(req, res) {
     console.log('📨 POST /api/start-bots');
+    console.log('📦 Request body:', req.body);
+    
     var tokens = req.body.tokens;
     if (!tokens || tokens.length === 0) {
+        console.log('❌ No tokens in request');
         return res.json({ success: false, error: 'No tokens' });
     }
+    
+    console.log('📊 Received ' + tokens.length + ' tokens');
     var result = startBots(tokens);
+    console.log('📤 Response:', result);
     res.json(result);
 });
 
@@ -264,14 +282,12 @@ app.post('/api/command', async function(req, res) {
                     }
                     
                     try {
-                        // Get audio stream
                         var stream = ytdl(args, {
                             filter: 'audioonly',
                             quality: 'highestaudio',
                             highWaterMark: 1 << 25
                         });
                         
-                        // Play using voice connection
                         var dispatcher = client2.voice.connection.play(stream, {
                             type: 'opus',
                             volume: currentVolume
@@ -413,5 +429,5 @@ var PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
     console.log('\n🌸 RINTU ULTIMATE: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 ' + dashboardTokens.length + ' tokens loaded\n');
+    console.log('📊 Waiting for tokens...\n');
 });
