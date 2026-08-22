@@ -1,7 +1,7 @@
 {
-  "name": "rintu-dashboard",
+  "name": "rintu-selfbot-voice",
   "version": "1.0.0",
-  "description": "🌸 RINTU DASHBOARD - Discord Self-Bot Controller",
+  "description": "Working selfbot voice - 2026 method",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -9,8 +9,9 @@
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.6.1",
-    "discord.js-selfbot-v13": "^2.14.0",
-    "youtube-dl-exec": "^2.5.3",
-    "ffmpeg-static": "^5.1.0"
+    "discord.js-selfbot-v13": "3.1.2",
+    "@discordjs/voice": "0.11.0",
+    "ytdl-core": "^4.11.5",
+    "ffmpeg-static": "^5.2.0"
   }
 }
