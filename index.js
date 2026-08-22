@@ -224,21 +224,26 @@ const HTML = `<!DOCTYPE html>
         .status-user .logout { color: #f87171; cursor: pointer; font-size: 0.8em; }
         .status-user .logout:hover { text-decoration: underline; }
         .token-area { display: flex; flex-direction: column; gap: 10px; }
+        .join-box { display: flex; gap: 10px; flex-wrap: wrap; }
+        .join-box input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.3); color: #fff; outline: none; min-width: 150px; }
+        .join-box input:focus { border-color: rgba(192,132,252,0.3); }
         @media (max-width: 600px) {
             .header h1 { font-size: 1.8em; }
             .status-bar { flex-direction: column; }
             .cmd-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
             .now-playing { flex-direction: column; text-align: center; }
             .input-row { flex-direction: column; }
+            .join-box { flex-direction: column; }
         }
     </style>
 </head>
 <body>
 <div id="app">
+    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="container">
         <div class="card login-box">
             <h1 style="font-size:2em;background:linear-gradient(135deg,#ff6b9d,#c084fc,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;">🌸 RINTU</h1>
-            <div style="color:rgba(255,255,255,0.3);margin-bottom:20px;">✦ FINAL ✦</div>
+            <div style="color:rgba(255,255,255,0.3);margin-bottom:20px;">✦ LOGIN ✦</div>
             <input type="text" id="loginUser" placeholder="Username" value="admin">
             <input type="password" id="loginPass" placeholder="Password" value="admin123">
             <button class="login-btn" onclick="login()">🔓 LOGIN</button>
@@ -246,6 +251,7 @@ const HTML = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- DASHBOARD -->
     <div id="dashboardScreen" class="container" style="display:none;">
         <div class="header">
             <h1>🌸 RINTU</h1>
@@ -268,6 +274,15 @@ const HTML = `<!DOCTYPE html>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">🎯 Join Server</div>
+            <div class="join-box">
+                <input id="inviteInput" placeholder="https://discord.gg/invite or invite code">
+                <button class="btn btn-glow" id="joinBtn">🚀 Join Server</button>
+            </div>
+            <div style="font-size:0.7em;color:rgba(255,255,255,0.2);margin-top:6px;">⚡ All bots will join the server</div>
         </div>
 
         <div class="card">
@@ -325,10 +340,18 @@ const HTML = `<!DOCTYPE html>
 <script>
 let socket;
 
+// ─── LOGIN FUNCTION ───
 function login() {
     const user = document.getElementById('loginUser').value.trim();
     const pass = document.getElementById('loginPass').value.trim();
-    if(!user || !pass) { document.getElementById('loginError').textContent = '❌ Enter credentials'; return; }
+    
+    if(!user || !pass) {
+        document.getElementById('loginError').textContent = '❌ Enter username and password';
+        return;
+    }
+    
+    document.getElementById('loginError').textContent = '⏳ Logging in...';
+    
     fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -337,6 +360,7 @@ function login() {
     .then(r => r.json())
     .then(data => {
         if(data.success) {
+            document.getElementById('loginError').textContent = '';
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardScreen').style.display = 'block';
             document.getElementById('currentUser').textContent = user;
@@ -344,13 +368,22 @@ function login() {
         } else {
             document.getElementById('loginError').textContent = '❌ ' + data.error;
         }
+    })
+    .catch(() => {
+        document.getElementById('loginError').textContent = '❌ Login failed - check server';
     });
 }
 
+// ─── LOGOUT ───
 function logout() {
-    fetch('/api/logout', { method: 'POST' }).then(() => window.location.reload());
+    fetch('/api/logout', { method: 'POST' }).then(() => {
+        document.getElementById('dashboardScreen').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('loginError').textContent = '';
+    });
 }
 
+// ─── DASHBOARD ───
 function initDashboard() {
     socket = io();
     const logArea = document.getElementById('logArea');
@@ -403,6 +436,25 @@ function initDashboard() {
         }
     })();
 
+    // ─── JOIN SERVER ───
+    document.getElementById('joinBtn').onclick = function() {
+        const invite = document.getElementById('inviteInput').value.trim();
+        if(!invite) { addLog('❌ Enter invite link or code', 'err'); return; }
+        
+        fetch('/api/join-server', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invite: invite })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.message) addLog('✅ ' + data.message, 'resp');
+            if(data.error) addLog('❌ ' + data.error, 'err');
+        })
+        .catch(e => addLog('❌ Error: ' + e.message, 'err'));
+    };
+
+    // ─── STATUS ───
     function updateStatus(running, count, title) {
         const dot = document.getElementById('statusDot');
         const text = document.getElementById('statusText');
@@ -420,6 +472,7 @@ function initDashboard() {
     socket.on('audio_update', (d) => { if(d.title) document.getElementById('nowPlaying').textContent = d.title; if(d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume); });
     socket.on('command_response', (d) => addLog('✦ ' + d.command + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp'));
 
+    // ─── START/STOP ───
     document.getElementById('startBtn').onclick = function() {
         const tokens = getTokens();
         if(!tokens.length) { addLog('❌ Add tokens!', 'err'); return; }
@@ -433,6 +486,7 @@ function initDashboard() {
         addLog('⛔ Stopping...', 'sys');
     };
 
+    // ─── COMMANDS ───
     function sendCmd(cmd) {
         if(!cmd) return;
         fetch('/api/command', {
@@ -470,6 +524,7 @@ function initDashboard() {
     fetch('/api/status').then(r => r.json()).then(d => updateStatus(d.isRunning, d.botCount, d.currentTitle)).catch(console.error);
 }
 
+// ─── AUTO-LOGIN CHECK ───
 window.onload = function() {
     fetch('/api/check-auth')
         .then(r => r.json())
@@ -502,8 +557,15 @@ app.get('/', (req, res) => {
 // ─── AUTH ───
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
+    
+    // Simple auth - you can add more users
     if (username === 'admin' && password === 'admin123') {
         const token = jwt.sign({ username, role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+        res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Max-Age=86400; Path=/`);
+        return res.json({ success: true });
+    }
+    if (username === 'friend1' && password === 'friend123') {
+        const token = jwt.sign({ username, role: 'friend' }, JWT_SECRET, { expiresIn: '24h' });
         res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Max-Age=86400; Path=/`);
         return res.json({ success: true });
     }
@@ -535,11 +597,13 @@ let players = {};
 let currentTitle = 'Nothing playing';
 let currentVolume = 1.0;
 let keepAliveIntervals = {};
-let voiceStates = {};
 
 function startBots() {
     if (isBotRunning) return;
-    if (!dashboardTokens.length) return;
+    if (!dashboardTokens.length) {
+        console.log('❌ No tokens');
+        return;
+    }
 
     isBotRunning = true;
     dashboardTokens.forEach((token, index) => {
@@ -554,7 +618,13 @@ function startBots() {
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
         });
 
-        client.login(token).catch(err => console.log('❌ Bot ' + (index + 1) + ' login failed'));
+        client.on('error', (err) => {
+            console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
+        });
+
+        client.login(token).catch(err => {
+            console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
+        });
         clients.push(client);
     });
     io.emit('bots_started', { count: dashboardTokens.length });
@@ -580,36 +650,86 @@ function stopBots() {
     console.log('⛔ All bots stopped');
 }
 
-// ─── JOIN VOICE USING RAW API ───
+// ─── JOIN SERVER ───
+app.post('/api/join-server', authenticate, async (req, res) => {
+    const { invite } = req.body;
+    if (!invite) return res.json({ error: 'No invite provided' });
+    
+    if (clients.length === 0) {
+        return res.json({ error: 'Start bots first!' });
+    }
+
+    let inviteCode = invite;
+    if (invite.includes('discord.gg/')) {
+        inviteCode = invite.split('discord.gg/')[1].split('/')[0].split('?')[0];
+    }
+    if (invite.includes('discord.com/invite/')) {
+        inviteCode = invite.split('discord.com/invite/')[1].split('/')[0].split('?')[0];
+    }
+
+    let results = [];
+    for (let i = 0; i < clients.length; i++) {
+        const client = clients[i];
+        if (!client) continue;
+        
+        try {
+            console.log('🔄 Bot ' + (i + 1) + ' joining server with code:', inviteCode);
+            
+            // Method 1: Use acceptInvite
+            const inviteObj = await client.fetchInvite(inviteCode);
+            if (inviteObj) {
+                await client.acceptInvite(inviteCode);
+                results.push('✅ Bot ' + (i + 1) + ' joined: ' + (inviteObj.guild?.name || 'Server'));
+                console.log('✅ Bot ' + (i + 1) + ' joined server');
+            }
+        } catch (err1) {
+            console.log('⚠️ Bot ' + (i + 1) + ' invite method failed:', err1.message);
+            
+            try {
+                // Method 2: Direct API join
+                const response = await axios.post(
+                    `https://discord.com/api/v9/invites/${inviteCode}`,
+                    {},
+                    {
+                        headers: {
+                            'Authorization': client.token || client.authToken,
+                            'Content-Type': 'application/json',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    }
+                );
+                if (response.data && response.data.guild) {
+                    results.push('✅ Bot ' + (i + 1) + ' joined: ' + response.data.guild.name);
+                }
+            } catch (err2) {
+                results.push('❌ Bot ' + (i + 1) + ' failed: ' + err2.message);
+            }
+        }
+    }
+
+    const message = results.join('\n');
+    io.emit('command_response', { command: '🔗 Join Server', response: message });
+    res.json({ message: message });
+});
+
+// ─── JOIN VOICE ───
 async function joinVoiceChannelRaw(client, channelId) {
     try {
         const channel = await client.channels.fetch(channelId);
         if (!channel) return null;
         
-        // Get guild and voice state
-        const guild = channel.guild;
-        const voiceState = guild.voiceStates.cache.get(client.user.id);
-        
-        // If already connected, return
-        if (voiceState && voiceState.channelId === channelId) {
-            return voiceState;
-        }
-        
-        // Connect using the built-in method
         const connection = client.voice.connect(channelId);
         return connection;
     } catch (err) {
-        console.log('Join error:', err.message);
+        console.log('Join voice error:', err.message);
         return null;
     }
 }
 
-// ─── KEEP BOTS IN VOICE ───
 function keepBotsInVoice() {
     for (const key in connections) {
         if (connections[key]) {
             try {
-                // Send a keepalive ping
                 connections[key].setSpeaking(true);
                 setTimeout(() => {
                     try { connections[key].setSpeaking(false); } catch(e) {}
@@ -710,24 +830,18 @@ app.post('/api/command', async (req, res) => {
         } else if (!isNaN(lower) && lower.length >= 10) {
             const channelId = lower;
             let count = 0;
-            let errors = [];
             
             for (let i = 0; i < clients.length; i++) {
                 const client = clients[i];
                 if (!client) continue;
                 
                 try {
-                    console.log('🔄 Bot ' + (i + 1) + ' joining channel ' + channelId);
-                    
-                    // Method 1: Use the voice connect method
                     const connection = await joinVoiceChannelRaw(client, channelId);
-                    
                     if (connection) {
                         connections[i] = connection;
                         count++;
                         console.log('✅ Bot ' + (i + 1) + ' connected to voice');
                         
-                        // Set up keep-alive for this bot
                         keepAliveIntervals[i] = setInterval(() => {
                             try {
                                 if (connections[i]) {
@@ -738,25 +852,19 @@ app.post('/api/command', async (req, res) => {
                                 }
                             } catch(e) {}
                         }, 15000);
-                    } else {
-                        errors.push('Bot ' + (i + 1) + ' failed');
                     }
                 } catch (err) {
-                    errors.push('Bot ' + (i + 1) + ': ' + err.message);
-                    console.log('❌ Bot ' + (i + 1) + ' join error:', err.message);
+                    console.log('❌ Bot ' + (i + 1) + ' join voice error:', err.message);
                 }
             }
             
             if (count > 0) {
                 response = '✅ Connected ' + count + '/' + clients.length + ' bots to voice! They will stay forever!';
-                if (errors.length > 0) {
-                    response += ' ⚠️ Errors: ' + errors.join(', ');
-                }
             } else {
-                response = '❌ Failed to connect any bots. Make sure the channel ID is correct and bots are in the server!';
+                response = '❌ Failed to connect. Make sure bots are in the server!';
             }
         } else {
-            response = '❌ Unknown command. Try: play <url>, stop, pause, resume, volume 1-2000, leave, or channel_id';
+            response = '❌ Unknown command';
         }
     } catch (err) {
         response = '❌ Error: ' + err.message;
@@ -801,5 +909,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log('\n🌸 RINTU FINAL: http://localhost:' + PORT);
     console.log('👑 admin / admin123');
+    console.log('👤 friend1 / friend123');
     console.log('⚡ BOTS STAY IN VOICE FOREVER!\n');
 });
