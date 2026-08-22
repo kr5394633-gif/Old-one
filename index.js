@@ -27,7 +27,7 @@ const io = socketIo(server);
 
 app.use(express.json());
 
-// ─── HTML DIRECTLY IN CODE ───
+// ─── HTML ───
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -903,12 +903,9 @@ app.post('/api/command', async function(req, res) {
     var response = '';
 
     try {
-        // ─── HELP ───
         if (lowerCmd === 'help') {
             response = '📋 Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n📊 ' + dashboardTokens.length + ' tokens loaded';
         }
-        
-        // ─── PLAY ───
         else if (lowerCmd.startsWith('play ')) {
             var url = command.slice(5).trim();
             if (connections.size === 0) {
@@ -935,8 +932,6 @@ app.post('/api/command', async function(req, res) {
                 response = '🎵 Playing: ' + url;
             }
         }
-        
-        // ─── STOP ───
         else if (lowerCmd === 'stop') {
             stopFFmpeg();
             stopLoudMode();
@@ -944,22 +939,16 @@ app.post('/api/command', async function(req, res) {
             activeResources.clear();
             response = '⏹️ Playback stopped';
         }
-        
-        // ─── PAUSE ───
         else if (lowerCmd === 'pause') {
             players.forEach(function(p) { try { p.pause(); } catch(e){} });
             isPaused = true;
             response = '⏸️ Paused';
         }
-        
-        // ─── RESUME ───
         else if (lowerCmd === 'resume') {
             players.forEach(function(p) { try { p.unpause(); } catch(e){} });
             isPaused = false;
             response = '▶️ Resumed';
         }
-        
-        // ─── LEAVE ───
         else if (lowerCmd === 'leave') {
             stopFFmpeg();
             stopLoudMode();
@@ -972,8 +961,6 @@ app.post('/api/command', async function(req, res) {
             currentChannelId = null;
             response = '👋 Disconnected all bots from voice';
         }
-        
-        // ─── VOLUME ───
         else if (lowerCmd.startsWith('volume ')) {
             var vol = parseInt(command.slice(7).trim(), 10);
             if (isNaN(vol) || vol < 1 || vol > 20000) {
@@ -986,8 +973,6 @@ app.post('/api/command', async function(req, res) {
                 response = '🔊 Volume set to ' + vol + '%';
             }
         }
-        
-        // ─── MAX ───
         else if (lowerCmd === 'max') {
             currentVolumeMultiplier = 100.0;
             activeResources.forEach(function(res) {
@@ -996,16 +981,12 @@ app.post('/api/command', async function(req, res) {
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '💥 MAXIMUM VOLUME (10000%)';
         }
-        
-        // ─── BLAST ───
         else if (lowerCmd === 'blast') {
             blastMode = !blastMode;
             pungiMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '🔥 Blast Mode ' + (blastMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        
-        // ─── DOUBLE BLAST ───
         else if (lowerCmd === 'doubleblast') {
             blastMode = true; pungiMode = false; superLoudMode = false; forceLoudMode = false;
             blastVolume = 100.0; currentVolumeMultiplier = 100.0;
@@ -1015,39 +996,29 @@ app.post('/api/command', async function(req, res) {
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '💥💥 DOUBLE BLAST ACTIVATED!';
         }
-        
-        // ─── SUPER LOUD ───
         else if (lowerCmd === 'superloud') {
             superLoudMode = !superLoudMode;
             if (superLoudMode) { blastMode = false; pungiMode = false; forceLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '🔊 Super Loud ' + (superLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        
-        // ─── FORCE LOUD ───
         else if (lowerCmd === 'forceloud') {
             forceLoudMode = !forceLoudMode;
             if (forceLoudMode) { blastMode = false; pungiMode = false; superLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '⚡ Force Loud ' + (forceLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        
-        // ─── BASSBOOST ───
         else if (lowerCmd === 'bassboost') {
             isBassboosted = !isBassboosted;
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '🎵 Bassboost ' + (isBassboosted ? 'ENABLED' : 'DISABLED');
         }
-        
-        // ─── PUNGI ───
         else if (lowerCmd === 'pungi') {
             pungiMode = !pungiMode;
             blastMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
             response = '🐍 Pungi Mode ' + (pungiMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
-        
-        // ─── PUNGISET ───
         else if (lowerCmd.startsWith('pungiset ')) {
             var val = parseFloat(command.slice(9).trim());
             if (isNaN(val) || val < 1 || val > 200) {
@@ -1058,35 +1029,25 @@ app.post('/api/command', async function(req, res) {
                 response = '🐍 Pungi intensity set to ' + val + 'x';
             }
         }
-        
-        // ─── LOUDMODE ───
         else if (lowerCmd === 'loudmode') {
             loudMode = !loudMode;
             if (loudMode) startLoudMode();
             else stopLoudMode();
             response = '📢 Loud Mode ' + (loudMode ? 'ENABLED' : 'DISABLED');
         }
-        
-        // ─── LOOP ───
         else if (lowerCmd === 'loop') {
             loopMode = !loopMode;
             response = '🔄 Loop ' + (loopMode ? 'ENABLED' : 'DISABLED');
         }
-        
-        // ─── STATUS ───
         else if (lowerCmd === 'status') {
             response = '🎵 ' + currentTitle + '\n📊 ' + clients.length + '/' + dashboardTokens.length + ' bots online\n🔊 ' + Math.round(currentVolumeMultiplier * 100) + '%\n🔄 Loop: ' + (loopMode ? 'ON' : 'OFF');
         }
-        
-        // ─── JOIN VOICE CHANNEL ───
         else if (!isNaN(lowerCmd) && lowerCmd.length >= 10) {
             currentChannelId = lowerCmd;
             response = '🔊 Connecting ' + clients.length + ' bots to voice channel...';
             
-            // Send immediate response
             io.emit('command_response', { command: command, response: response });
             
-            // Wait for bots to be ready and connect
             setTimeout(function() {
                 var connectedCount = 0;
                 for (var i = 0; i < clients.length; i++) {
@@ -1102,7 +1063,8 @@ app.post('/api/command', async function(req, res) {
                                         guildId: channel.guild.id,
                                         adapterCreator: channel.guild.voiceAdapterCreator,
                                         selfMute: false,
-                                        selfDeaf: false
+                                        selfDeaf: false,
+                                        group: client.user.id
                                     });
                                     
                                     conn.on(VoiceConnectionStatus.Ready, function() {
@@ -1144,7 +1106,6 @@ app.post('/api/command', async function(req, res) {
             
             return res.json({ response: response });
         }
-        
         else {
             response = '❌ Unknown command. Type "help" for list.';
         }
