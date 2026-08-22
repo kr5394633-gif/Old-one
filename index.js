@@ -23,7 +23,7 @@ const io = socketIo(server);
 
 app.use(express.json());
 
-// ─── SERVE HTML DIRECTLY FROM MEMORY ───
+// ─── HTML DIRECTLY IN CODE ───
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -401,7 +401,7 @@ const HTML = `<!DOCTYPE html>
     <div class="card">
         <div class="card-title">⌨️ Custom Command</div>
         <div class="input-row">
-            <input id="cmdInput" placeholder='play https://youtube.com/... or channel_id'>
+            <input id="cmdInput" placeholder="play https://youtube.com/... or channel_id">
             <button class="btn btn-glow" id="sendBtn">Send ✦</button>
         </div>
     </div>
@@ -417,188 +417,193 @@ const HTML = `<!DOCTYPE html>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const socket = io();
-const logArea = document.getElementById('logArea');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const botCount = document.getElementById('botCount');
-const volDisplay = document.getElementById('volDisplay');
-const nowPlaying = document.getElementById('nowPlaying');
-const effectsWrap = document.getElementById('effectsWrap');
-const tokenInput = document.getElementById('tokenInput');
-const tokenCount = document.getElementById('tokenCount');
-const validCount = document.getElementById('validCount');
+const logArea = document.getElementById("logArea");
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+const botCount = document.getElementById("botCount");
+const volDisplay = document.getElementById("volDisplay");
+const nowPlaying = document.getElementById("nowPlaying");
+const effectsWrap = document.getElementById("effectsWrap");
+const tokenInput = document.getElementById("tokenInput");
+const tokenCount = document.getElementById("tokenCount");
+const validCount = document.getElementById("validCount");
 
 function updateTokenStats() {
     const text = tokenInput.value;
-    const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 10);
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 10);
     tokenCount.textContent = lines.length;
-    validCount.textContent = lines.filter(l => l.startsWith('mfa.') || l.length > 20).length;
+    validCount.textContent = lines.filter(l => l.startsWith("mfa.") || l.length > 20).length;
 }
-tokenInput.addEventListener('input', updateTokenStats);
+tokenInput.addEventListener("input", updateTokenStats);
 
 function getTokensFromInput() {
     const text = tokenInput.value;
-    return text.split('\\n').map(l => l.trim()).filter(l => l.length > 10);
+    return text.split("\n").map(l => l.trim()).filter(l => l.length > 10);
 }
 
-document.getElementById('saveTokensBtn').onclick = () => {
+document.getElementById("saveTokensBtn").onclick = function() {
     const tokens = getTokensFromInput();
-    if (!tokens.length) { addLog('❌ No tokens to save!', 'err'); return; }
-    localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    addLog(`💾 Saved ${tokens.length} tokens`, 'resp');
+    if (!tokens.length) { addLog("No tokens to save!", "err"); return; }
+    localStorage.setItem("rintu_tokens", JSON.stringify(tokens));
+    addLog("Saved " + tokens.length + " tokens", "resp");
 };
 
-document.getElementById('loadTokensBtn').onclick = () => {
-    const saved = localStorage.getItem('rintu_tokens');
-    if (!saved) { addLog('❌ No saved tokens found', 'err'); return; }
+document.getElementById("loadTokensBtn").onclick = function() {
+    const saved = localStorage.getItem("rintu_tokens");
+    if (!saved) { addLog("No saved tokens found", "err"); return; }
     try {
         const tokens = JSON.parse(saved);
-        tokenInput.value = tokens.join('\\n');
+        tokenInput.value = tokens.join("\n");
         updateTokenStats();
-        addLog(`📂 Loaded ${tokens.length} tokens`, 'resp');
-    } catch(e) { addLog('❌ Error loading tokens', 'err'); }
+        addLog("Loaded " + tokens.length + " tokens", "resp");
+    } catch(e) { addLog("Error loading tokens", "err"); }
 };
 
-window.onload = () => {
-    const saved = localStorage.getItem('rintu_tokens');
+window.onload = function() {
+    const saved = localStorage.getItem("rintu_tokens");
     if (saved) {
         try {
             const tokens = JSON.parse(saved);
-            tokenInput.value = tokens.join('\\n');
+            tokenInput.value = tokens.join("\n");
             updateTokenStats();
         } catch(e) {}
     }
 };
 
-function addLog(msg, type='sys') {
+function addLog(msg, type) {
+    if (!type) type = "sys";
     const time = new Date().toLocaleTimeString();
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = `<span class="time">[${time}]</span> <span class="${type}">${msg}</span>`;
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = "<span class=\"time\">[" + time + "]</span> <span class=\"" + type + "\">" + msg + "</span>";
     logArea.appendChild(entry);
     logArea.scrollTop = logArea.scrollHeight;
 }
 
 function updateStatus(running, count, title, vol) {
-    statusDot.className = `status-dot ${running ? 'online' : 'offline'}`;
-    statusText.className = `status-text ${running ? 'online' : 'offline'}`;
-    statusText.textContent = running ? 'ONLINE' : 'OFFLINE';
+    statusDot.className = "status-dot " + (running ? "online" : "offline");
+    statusText.className = "status-text " + (running ? "online" : "offline");
+    statusText.textContent = running ? "ONLINE" : "OFFLINE";
     botCount.textContent = count || 0;
     if (vol !== undefined) volDisplay.textContent = Math.round(vol);
-    if (title && title !== 'Nothing playing') nowPlaying.textContent = title;
-    else nowPlaying.textContent = '✨ Ready to play';
+    if (title && title !== "Nothing playing") nowPlaying.textContent = title;
+    else nowPlaying.textContent = "✨ Ready to play";
 }
 
 function updateEffects(data) {
     const map = [
-        ['bassboost', '🎵 Bass', 'badge-bass'],
-        ['blast', '🔥 Blast', 'badge-blast'],
-        ['pungi', '🐍 Pungi', 'badge-pungi'],
-        ['superLoudMode', '🔊 Super', 'badge-super'],
-        ['forceLoudMode', '⚡ Force', 'badge-force'],
-        ['loopMode', '🔄 Loop', 'badge-loop'],
-        ['loudMode', '📢 Loud', 'badge-loud']
+        ["bassboost", "🎵 Bass", "badge-bass"],
+        ["blast", "🔥 Blast", "badge-blast"],
+        ["pungi", "🐍 Pungi", "badge-pungi"],
+        ["superLoudMode", "🔊 Super", "badge-super"],
+        ["forceLoudMode", "⚡ Force", "badge-force"],
+        ["loopMode", "🔄 Loop", "badge-loop"],
+        ["loudMode", "📢 Loud", "badge-loud"]
     ];
-    effectsWrap.innerHTML = '';
-    for (const [key, label, cls] of map) {
+    effectsWrap.innerHTML = "";
+    for (var i = 0; i < map.length; i++) {
+        var key = map[i][0];
+        var label = map[i][1];
+        var cls = map[i][2];
         if (data[key]) {
-            const badge = document.createElement('span');
-            badge.className = `badge ${cls}`;
+            var badge = document.createElement("span");
+            badge.className = "badge " + cls;
             badge.textContent = label;
             effectsWrap.appendChild(badge);
         }
     }
 }
 
-socket.on('status_update', (d) => {
+socket.on("status_update", function(d) {
     updateStatus(d.isRunning, d.botCount, d.currentTitle, d.volume);
     updateEffects(d);
 });
 
-socket.on('bots_started', (d) => {
-    addLog(`🚀 ${d.count} bots started`, 'resp');
+socket.on("bots_started", function(d) {
+    addLog("Started " + d.count + " bots", "resp");
     updateStatus(true, d.count);
 });
 
-socket.on('bots_stopped', () => {
-    addLog('⛔ Bots stopped', 'err');
+socket.on("bots_stopped", function() {
+    addLog("Bots stopped", "err");
     updateStatus(false, 0);
 });
 
-socket.on('bot_status', (d) => {
-    addLog(`🤖 Bot ${d.index}/${d.total}: ${d.tag}`, 'resp');
+socket.on("bot_status", function(d) {
+    addLog("Bot " + d.index + "/" + d.total + ": " + d.tag, "resp");
 });
 
-socket.on('audio_update', (d) => {
+socket.on("audio_update", function(d) {
     if (d.title) nowPlaying.textContent = d.title;
     if (d.volume) volDisplay.textContent = Math.round(d.volume);
 });
 
-socket.on('command_response', (d) => {
-    const isErr = d.response.includes('❌') || d.response.includes('Error');
-    addLog(`✦ ${d.command} → ${d.response}`, isErr ? 'err' : 'resp');
+socket.on("command_response", function(d) {
+    var isErr = d.response.includes("❌") || d.response.includes("Error");
+    addLog(d.command + " -> " + d.response, isErr ? "err" : "resp");
 });
 
-document.getElementById('startBtn').onclick = () => {
-    const tokens = getTokensFromInput();
-    if (!tokens.length) { addLog('❌ Add tokens first!', 'err'); return; }
-    localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    socket.emit('start_bots_with_tokens', { tokens });
-    addLog(`🚀 Starting ${tokens.length} bots...`, 'sys');
+document.getElementById("startBtn").onclick = function() {
+    var tokens = getTokensFromInput();
+    if (!tokens.length) { addLog("Add tokens first!", "err"); return; }
+    localStorage.setItem("rintu_tokens", JSON.stringify(tokens));
+    socket.emit("start_bots_with_tokens", { tokens: tokens });
+    addLog("Starting " + tokens.length + " bots...", "sys");
 };
 
-document.getElementById('stopBtn').onclick = () => {
-    socket.emit('stop_bots');
-    addLog('⛔ Stopping...', 'sys');
+document.getElementById("stopBtn").onclick = function() {
+    socket.emit("stop_bots");
+    addLog("Stopping...", "sys");
 };
 
 async function sendCmd(cmd) {
     if (!cmd) return;
     try {
-        const res = await fetch('/api/command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        var res = await fetch("/api/command", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ command: cmd })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.response) {
-            const isErr = data.response.includes('❌') || data.response.includes('Error');
-            addLog(`✦ ${cmd} → ${data.response}`, isErr ? 'err' : 'resp');
+            var isErr = data.response.includes("❌") || data.response.includes("Error");
+            addLog(cmd + " -> " + data.response, isErr ? "err" : "resp");
         }
-    } catch(e) { addLog(`❌ ${e.message}`, 'err'); }
+    } catch(e) { addLog("Error: " + e.message, "err"); }
 }
 
-document.getElementById('sendBtn').onclick = () => {
-    const inp = document.getElementById('cmdInput');
+document.getElementById("sendBtn").onclick = function() {
+    var inp = document.getElementById("cmdInput");
     sendCmd(inp.value.trim());
-    inp.value = '';
+    inp.value = "";
 };
 
-document.getElementById('cmdInput').onkeypress = (e) => {
-    if (e.key === 'Enter') document.getElementById('sendBtn').click();
+document.getElementById("cmdInput").onkeypress = function(e) {
+    if (e.key === "Enter") document.getElementById("sendBtn").click();
 };
 
-document.querySelectorAll('.cmd-btn').forEach(btn => {
-    btn.onclick = async () => {
-        const cmd = btn.dataset.cmd;
-        if (cmd === 'play') {
-            const url = prompt('🎵 Enter URL:');
-            if (url) await sendCmd(`play ${url}`);
+var cmdBtns = document.querySelectorAll(".cmd-btn");
+for (var i = 0; i < cmdBtns.length; i++) {
+    cmdBtns[i].onclick = function() {
+        var cmd = this.dataset.cmd;
+        if (cmd === "play") {
+            var url = prompt("Enter YouTube URL:");
+            if (url) sendCmd("play " + url);
             return;
         }
-        await sendCmd(cmd);
+        sendCmd(cmd);
     };
-});
+}
 
-fetch('/api/status').then(r => r.json()).then(d => {
+fetch("/api/status").then(function(r) { return r.json(); }).then(function(d) {
     updateStatus(d.isRunning, d.botCount, d.currentTitle, d.volume);
     updateEffects(d);
 }).catch(console.error);
 
-setInterval(() => {
-    fetch('/api/status').then(r => r.json()).then(d => {
+setInterval(function() {
+    fetch("/api/status").then(function(r) { return r.json(); }).then(function(d) {
         updateEffects(d);
-        if (d.currentTitle && d.currentTitle !== 'Nothing playing') {
+        if (d.currentTitle && d.currentTitle !== "Nothing playing") {
             nowPlaying.textContent = d.currentTitle;
         }
         if (d.volume !== undefined) volDisplay.textContent = Math.round(d.volume);
@@ -609,39 +614,39 @@ setInterval(() => {
 </html>`;
 
 // ─── SERVE HTML ───
-app.get('/', (req, res) => {
+app.get("/", function(req, res) {
     res.send(HTML);
 });
 
 // ─── TOKENS FROM DASHBOARD ───
-let dashboardTokens = [];
-let isBotRunning = false;
+var dashboardTokens = [];
+var isBotRunning = false;
 
-console.log(`🎯 RINTU DASHBOARD - Ready!`);
+console.log("RINTU DASHBOARD - Ready!");
 
 // Bot state
-const clients = [];
-const connections = new Map();
-const players = new Map();
-const activeResources = new Map();
-let currentFFmpegProcess = null;
-let currentUrl = null;
-let currentTitle = "Nothing playing";
-let currentChannelId = null;
-let loopMode = false;
-let isPaused = false;
-let isBassboosted = false;
-let currentVolumeMultiplier = 1.0;
-let blastMode = false;
-let blastVolume = 50.0;
-let pungiMode = false;
-let pungiIntensity = 50.0;
-let loudMode = false;
-let loudModeBoost = 20.0;
-let loudModeMaxVolume = 500.0;
-let loudModeInterval = null;
-let superLoudMode = false;
-let forceLoudMode = false;
+var clients = [];
+var connections = new Map();
+var players = new Map();
+var activeResources = new Map();
+var currentFFmpegProcess = null;
+var currentUrl = null;
+var currentTitle = "Nothing playing";
+var currentChannelId = null;
+var loopMode = false;
+var isPaused = false;
+var isBassboosted = false;
+var currentVolumeMultiplier = 1.0;
+var blastMode = false;
+var blastVolume = 50.0;
+var pungiMode = false;
+var pungiIntensity = 50.0;
+var loudMode = false;
+var loudModeBoost = 20.0;
+var loudModeMaxVolume = 500.0;
+var loudModeInterval = null;
+var superLoudMode = false;
+var forceLoudMode = false;
 
 function stopFFmpeg() {
     if (currentFFmpegProcess) {
@@ -660,20 +665,23 @@ function stopLoudMode() {
 
 function startLoudMode() {
     if (loudModeInterval) clearInterval(loudModeInterval);
-    loudModeInterval = setInterval(() => {
+    loudModeInterval = setInterval(function() {
         if (!loudMode || connections.size === 0) return;
-        const primaryClient = clients[0];
+        var primaryClient = clients[0];
         if (!primaryClient || !currentChannelId) return;
-        const channel = primaryClient.channels.cache.get(currentChannelId);
+        var channel = primaryClient.channels.cache.get(currentChannelId);
         if (!channel) return;
-        const clusterIds = clients.map(c => c.user?.id).filter(Boolean);
-        const speakingMembers = channel.members.filter(m => {
-            return !clusterIds.includes(m.id) && !m.voice.selfMute && m.voice.speaking;
+        var clusterIds = [];
+        for (var i = 0; i < clients.length; i++) {
+            if (clients[i].user && clients[i].user.id) clusterIds.push(clients[i].user.id);
+        }
+        var speakingMembers = channel.members.filter(function(m) {
+            return clusterIds.indexOf(m.id) === -1 && !m.voice.selfMute && m.voice.speaking;
         });
-        const targetVolume = speakingMembers.size > 0 
+        var targetVolume = speakingMembers.size > 0 
             ? Math.min(currentVolumeMultiplier * loudModeBoost, loudModeMaxVolume)
             : currentVolumeMultiplier;
-        activeResources.forEach((resource) => {
+        activeResources.forEach(function(resource) {
             if (resource && resource.volume && resource.volume.volume !== targetVolume) {
                 resource.volume.setVolume(targetVolume);
             }
@@ -687,7 +695,7 @@ function isYouTubeUrl(url) {
 
 function startFFmpegStream(inputSource) {
     stopFFmpeg();
-    let audioFilters = [];
+    var audioFilters = [];
     audioFilters.push("highpass=f=60");
 
     if (superLoudMode) {
@@ -713,16 +721,16 @@ function startFFmpegStream(inputSource) {
         audioFilters.push("acrusher=bits=4:mode=log:aa=1");
         audioFilters.push("equalizer=f=30:width_type=h:width=80:g=20");
         audioFilters.push("equalizer=f=1000:width_type=h:width=500:g=10");
-        audioFilters.push(`volume=${pungiIntensity}`);
+        audioFilters.push("volume=" + pungiIntensity);
         audioFilters.push("aphaser=0.8:0.8:2000:0.4");
         audioFilters.push("aecho=0.8:0.9:1000:0.3");
     } else if (blastMode) {
-        audioFilters.push(`volume=${blastVolume}`);
+        audioFilters.push("volume=" + blastVolume);
         audioFilters.push("dynaudnorm=p=0.9:m=50.0:g=15");
         audioFilters.push("alimiter=level_in=2.0:level_out=0.98:limit=0.99:attack=5:release=50");
     } else {
         if (currentVolumeMultiplier > 1.0) {
-            audioFilters.push(`volume=${currentVolumeMultiplier}`);
+            audioFilters.push("volume=" + currentVolumeMultiplier);
         }
     }
 
@@ -738,14 +746,14 @@ function startFFmpegStream(inputSource) {
         "pipe:1"
     ]);
 
-    clients.forEach((client, index) => {
-        const player = players.get(index);
+    clients.forEach(function(client, index) {
+        var player = players.get(index);
         if (player && currentFFmpegProcess) {
-            const resource = createAudioResource(currentFFmpegProcess.stdout, {
+            var resource = createAudioResource(currentFFmpegProcess.stdout, {
                 inputType: StreamType.Raw,
                 inlineVolume: true
             });
-            let effectiveVol = currentVolumeMultiplier;
+            var effectiveVol = currentVolumeMultiplier;
             if (pungiMode) effectiveVol = Math.min(pungiIntensity, 200.0);
             else if (blastMode) effectiveVol = Math.min(blastVolume, 500.0);
             else if (superLoudMode) effectiveVol = Math.min(currentVolumeMultiplier * 20, 2000.0);
@@ -754,8 +762,8 @@ function startFFmpegStream(inputSource) {
             resource.volume.setVolume(effectiveVol);
             activeResources.set(index, resource);
             player.play(resource);
-            io.emit('audio_update', { 
-                status: 'playing', 
+            io.emit("audio_update", { 
+                status: "playing", 
                 title: currentTitle, 
                 volume: Math.round(effectiveVol * 100) 
             });
@@ -769,73 +777,80 @@ function startBots() {
     if (isBotRunning) return;
     
     if (dashboardTokens.length === 0) {
-        console.log("❌ No tokens available! Add tokens in dashboard.");
+        console.log("No tokens available!");
         return;
     }
     
     isBotRunning = true;
-    dashboardTokens.forEach((token, index) => {
-        const client = new Client({ checkUpdate: false });
-        client.on("ready", () => {
-            console.log(`🤖 Bot ${index + 1}/${dashboardTokens.length}: ${client.user.tag}`);
-            io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: client.user.tag, status: 'online' });
+    dashboardTokens.forEach(function(token, index) {
+        var client = new Client({ checkUpdate: false });
+        client.on("ready", function() {
+            console.log("Bot " + (index + 1) + "/" + dashboardTokens.length + ": " + client.user.tag);
+            io.emit("bot_status", { index: index + 1, total: dashboardTokens.length, tag: client.user.tag, status: "online" });
         });
-        client.login(token).catch((err) => {
-            console.log(`❌ Bot ${index + 1} login failed: ${err.message}`);
+        client.login(token).catch(function(err) {
+            console.log("Bot " + (index + 1) + " login failed: " + err.message);
         });
         clients.push(client);
     });
-    io.emit('bots_started', { count: dashboardTokens.length });
+    io.emit("bots_started", { count: dashboardTokens.length });
 }
 
 function stopBots() {
     isBotRunning = false;
     stopFFmpeg();
     stopLoudMode();
-    players.forEach(p => p.stop());
+    players.forEach(function(p) { p.stop(); });
     players.clear();
-    connections.forEach(c => { try { c.destroy(); } catch(e){} });
+    connections.forEach(function(c) { try { c.destroy(); } catch(e){} });
     connections.clear();
     activeResources.clear();
-    clients.forEach(c => { try { c.destroy(); } catch(e){} });
-    clients.length = 0;
+    clients.forEach(function(c) { try { c.destroy(); } catch(e){} });
+    clients = [];
     currentUrl = null;
     currentChannelId = null;
-    io.emit('bots_stopped');
-    console.log("⛔ All bots stopped");
+    io.emit("bots_stopped");
+    console.log("All bots stopped");
 }
 
 // API Routes
-app.get('/api/status', (req, res) => {
+app.get("/api/status", function(req, res) {
     res.json({
         isRunning: isBotRunning,
         botCount: clients.length,
         totalTokens: dashboardTokens.length,
         currentTitle: currentTitle,
         volume: Math.round(currentVolumeMultiplier * 100),
-        isPaused, loopMode, isBassboosted, blastMode, pungiMode, loudMode, superLoudMode, forceLoudMode,
+        isPaused: isPaused,
+        loopMode: loopMode,
+        isBassboosted: isBassboosted,
+        blastMode: blastMode,
+        pungiMode: pungiMode,
+        loudMode: loudMode,
+        superLoudMode: superLoudMode,
+        forceLoudMode: forceLoudMode,
         connected: connections.size > 0
     });
 });
 
-app.post('/api/command', async (req, res) => {
-    const { command } = req.body;
-    if (!command) return res.json({ error: 'No command' });
+app.post("/api/command", async function(req, res) {
+    var command = req.body.command;
+    if (!command) return res.json({ error: "No command" });
     
-    const lowerCmd = command.toLowerCase().trim();
-    let response = '';
+    var lowerCmd = command.toLowerCase().trim();
+    var response = "";
 
     try {
-        if (lowerCmd === 'help') {
-            response = `Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n📊 ${dashboardTokens.length} tokens loaded`;
+        if (lowerCmd === "help") {
+            response = "Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n" + dashboardTokens.length + " tokens loaded";
         }
-        else if (lowerCmd.startsWith('play ')) {
-            const url = command.slice(5).trim();
+        else if (lowerCmd.startsWith("play ")) {
+            var url = command.slice(5).trim();
             if (connections.size === 0) {
-                response = '❌ Join a voice channel first!';
+                response = "Join a voice channel first!";
             } else if (isYouTubeUrl(url)) {
                 try {
-                    const result = await youtubedl(url, {
+                    var result = await youtubedl(url, {
                         dumpSingleJson: true,
                         noPlaylist: true,
                         format: "bestaudio[ext=webm]/bestaudio/best",
@@ -844,172 +859,174 @@ app.post('/api/command', async (req, res) => {
                     currentUrl = result.url;
                     currentTitle = result.title || "YouTube Audio";
                     startFFmpegStream(currentUrl);
-                    response = `▶️ Now Playing: ${currentTitle}`;
+                    response = "Now Playing: " + currentTitle;
                 } catch (err) {
-                    response = `❌ Error: ${err.message}`;
+                    response = "Error: " + err.message;
                 }
             } else {
                 currentUrl = url;
                 currentTitle = "Direct Audio";
                 startFFmpegStream(url);
-                response = `▶️ Playing: ${url}`;
+                response = "Playing: " + url;
             }
         }
-        else if (lowerCmd === 'stop') {
+        else if (lowerCmd === "stop") {
             stopFFmpeg();
             stopLoudMode();
-            players.forEach(p => p.stop());
+            players.forEach(function(p) { p.stop(); });
             activeResources.clear();
-            response = '⏹️ Playback stopped';
+            response = "Playback stopped";
         }
-        else if (lowerCmd === 'pause') {
-            players.forEach(p => p.pause());
+        else if (lowerCmd === "pause") {
+            players.forEach(function(p) { p.pause(); });
             isPaused = true;
-            response = '⏸️ Paused';
+            response = "Paused";
         }
-        else if (lowerCmd === 'resume') {
-            players.forEach(p => p.unpause());
+        else if (lowerCmd === "resume") {
+            players.forEach(function(p) { p.unpause(); });
             isPaused = false;
-            response = '▶️ Resumed';
+            response = "Resumed";
         }
-        else if (lowerCmd === 'leave') {
+        else if (lowerCmd === "leave") {
             stopFFmpeg();
             stopLoudMode();
-            players.forEach(p => p.stop());
+            players.forEach(function(p) { p.stop(); });
             players.clear();
-            connections.forEach(c => { try { c.destroy(); } catch(e){} });
+            connections.forEach(function(c) { try { c.destroy(); } catch(e){} });
             connections.clear();
             activeResources.clear();
             currentUrl = null;
             currentChannelId = null;
-            response = '👋 Disconnected all bots';
+            response = "Disconnected all bots";
         }
-        else if (lowerCmd.startsWith('volume ')) {
-            const vol = parseInt(command.slice(7).trim(), 10);
+        else if (lowerCmd.startsWith("volume ")) {
+            var vol = parseInt(command.slice(7).trim(), 10);
             if (isNaN(vol) || vol < 1 || vol > 20000) {
-                response = '❌ Volume must be 1-20000';
+                response = "Volume must be 1-20000";
             } else {
                 currentVolumeMultiplier = vol / 100;
-                activeResources.forEach((res) => {
-                    if (res?.volume) res.volume.setVolume(currentVolumeMultiplier);
+                activeResources.forEach(function(res) {
+                    if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
                 });
-                response = `🔊 Volume set to ${vol}%`;
+                response = "Volume set to " + vol + "%";
             }
         }
-        else if (lowerCmd === 'max') {
+        else if (lowerCmd === "max") {
             currentVolumeMultiplier = 100.0;
-            activeResources.forEach((res) => {
-                if (res?.volume) res.volume.setVolume(currentVolumeMultiplier);
+            activeResources.forEach(function(res) {
+                if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = '💥 MAXIMUM VOLUME (10000%)';
+            response = "MAXIMUM VOLUME (10000%)";
         }
-        else if (lowerCmd === 'blast') {
+        else if (lowerCmd === "blast") {
             blastMode = !blastMode;
             pungiMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = `🔥 Blast Mode ${blastMode ? 'ACTIVATED' : 'DEACTIVATED'}`;
+            response = "Blast Mode " + (blastMode ? "ACTIVATED" : "DEACTIVATED");
         }
-        else if (lowerCmd === 'doubleblast') {
+        else if (lowerCmd === "doubleblast") {
             blastMode = true; pungiMode = false; superLoudMode = false; forceLoudMode = false;
             blastVolume = 100.0; currentVolumeMultiplier = 100.0;
-            activeResources.forEach((res) => {
-                if (res?.volume) res.volume.setVolume(100.0);
+            activeResources.forEach(function(res) {
+                if (res && res.volume) res.volume.setVolume(100.0);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = '💥💥 DOUBLE BLAST ACTIVATED!';
+            response = "DOUBLE BLAST ACTIVATED!";
         }
-        else if (lowerCmd === 'superloud') {
+        else if (lowerCmd === "superloud") {
             superLoudMode = !superLoudMode;
             if (superLoudMode) { blastMode = false; pungiMode = false; forceLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = `🔊 Super Loud ${superLoudMode ? 'ACTIVATED' : 'DEACTIVATED'}`;
+            response = "Super Loud " + (superLoudMode ? "ACTIVATED" : "DEACTIVATED");
         }
-        else if (lowerCmd === 'forceloud') {
+        else if (lowerCmd === "forceloud") {
             forceLoudMode = !forceLoudMode;
             if (forceLoudMode) { blastMode = false; pungiMode = false; superLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = `🔥 Force Loud ${forceLoudMode ? 'ACTIVATED' : 'DEACTIVATED'}`;
+            response = "Force Loud " + (forceLoudMode ? "ACTIVATED" : "DEACTIVATED");
         }
-        else if (lowerCmd === 'bassboost') {
+        else if (lowerCmd === "bassboost") {
             isBassboosted = !isBassboosted;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = `🎵 Bassboost ${isBassboosted ? 'ENABLED' : 'DISABLED'}`;
+            response = "Bassboost " + (isBassboosted ? "ENABLED" : "DISABLED");
         }
-        else if (lowerCmd === 'pungi') {
+        else if (lowerCmd === "pungi") {
             pungiMode = !pungiMode;
             blastMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = `🐍 Pungi Mode ${pungiMode ? 'ACTIVATED' : 'DEACTIVATED'}`;
+            response = "Pungi Mode " + (pungiMode ? "ACTIVATED" : "DEACTIVATED");
         }
-        else if (lowerCmd.startsWith('pungiset ')) {
-            const val = parseFloat(command.slice(9).trim());
+        else if (lowerCmd.startsWith("pungiset ")) {
+            var val = parseFloat(command.slice(9).trim());
             if (isNaN(val) || val < 1 || val > 200) {
-                response = '❌ Intensity must be 1-200';
+                response = "Intensity must be 1-200";
             } else {
                 pungiIntensity = val;
                 if (pungiMode && currentUrl) startFFmpegStream(currentUrl);
-                response = `🐍 Pungi intensity set to ${val}x`;
+                response = "Pungi intensity set to " + val + "x";
             }
         }
-        else if (lowerCmd === 'loudmode') {
+        else if (lowerCmd === "loudmode") {
             loudMode = !loudMode;
             if (loudMode) startLoudMode();
             else stopLoudMode();
-            response = `🔊 Loud Mode ${loudMode ? 'ENABLED' : 'DISABLED'}`;
+            response = "Loud Mode " + (loudMode ? "ENABLED" : "DISABLED");
         }
-        else if (lowerCmd === 'loop') {
+        else if (lowerCmd === "loop") {
             loopMode = !loopMode;
-            response = `🔄 Loop ${loopMode ? 'ENABLED' : 'DISABLED'}`;
+            response = "Loop " + (loopMode ? "ENABLED" : "DISABLED");
         }
-        else if (lowerCmd === 'status') {
-            response = `🎵 ${currentTitle}\n📊 ${clients.length}/${dashboardTokens.length} bots online\n🔊 ${Math.round(currentVolumeMultiplier * 100)}%\n🔄 Loop: ${loopMode ? 'ON' : 'OFF'}`;
+        else if (lowerCmd === "status") {
+            response = currentTitle + "\n" + clients.length + "/" + dashboardTokens.length + " bots online\n" + Math.round(currentVolumeMultiplier * 100) + "%\nLoop: " + (loopMode ? "ON" : "OFF");
         }
         else if (!isNaN(lowerCmd) && lowerCmd.length >= 10) {
             currentChannelId = lowerCmd;
-            for (const [index, client] of clients.entries()) {
-                try {
-                    const channel = await client.channels.fetch(lowerCmd);
-                    if (channel) {
-                        const conn = joinVoiceChannel({
-                            channelId: channel.id,
-                            guildId: channel.guild.id,
-                            adapterCreator: channel.guild.voiceAdapterCreator,
-                            selfMute: false,
-                            selfDeaf: false,
-                            group: client.user.id
-                        });
-                        const player = createAudioPlayer();
-                        conn.subscribe(player);
-                        player.on(AudioPlayerStatus.Idle, () => {
-                            if (loopMode && currentUrl && !isPaused && index === 0) {
-                                setTimeout(() => startFFmpegStream(currentUrl), 500);
-                            }
-                        });
-                        connections.set(index, conn);
-                        players.set(index, player);
-                    }
-                } catch (err) {
-                    console.log(`❌ Bot ${index + 1} join error: ${err.message}`);
-                }
+            for (var i = 0; i < clients.length; i++) {
+                (function(index) {
+                    var client = clients[index];
+                    client.channels.fetch(lowerCmd).then(function(channel) {
+                        if (channel) {
+                            var conn = joinVoiceChannel({
+                                channelId: channel.id,
+                                guildId: channel.guild.id,
+                                adapterCreator: channel.guild.voiceAdapterCreator,
+                                selfMute: false,
+                                selfDeaf: false,
+                                group: client.user.id
+                            });
+                            var player = createAudioPlayer();
+                            conn.subscribe(player);
+                            player.on(AudioPlayerStatus.Idle, function() {
+                                if (loopMode && currentUrl && !isPaused && index === 0) {
+                                    setTimeout(function() { startFFmpegStream(currentUrl); }, 500);
+                                }
+                            });
+                            connections.set(index, conn);
+                            players.set(index, player);
+                        }
+                    }).catch(function(err) {
+                        console.log("Bot " + (index + 1) + " join error: " + err.message);
+                    });
+                })(i);
             }
-            response = `✅ Connected ${clients.length} bots to channel ${lowerCmd}`;
+            response = "Connected " + clients.length + " bots to channel " + lowerCmd;
         }
         else {
-            response = '❌ Unknown command. Type "help" for list.';
+            response = "Unknown command. Type help for list.";
         }
     } catch (err) {
-        response = `❌ Error: ${err.message}`;
+        response = "Error: " + err.message;
     }
 
-    io.emit('command_response', { command, response });
-    res.json({ response });
+    io.emit("command_response", { command: command, response: response });
+    res.json({ response: response });
 });
 
 // ─── SOCKET.IO ───
-io.on('connection', (socket) => {
-    console.log('📱 Dashboard connected');
-    socket.emit('status_update', {
+io.on("connection", function(socket) {
+    console.log("Dashboard connected");
+    socket.emit("status_update", {
         isRunning: isBotRunning,
         botCount: clients.length,
         totalTokens: dashboardTokens.length,
@@ -1017,29 +1034,30 @@ io.on('connection', (socket) => {
         volume: Math.round(currentVolumeMultiplier * 100)
     });
     
-    socket.on('start_bots_with_tokens', (data) => {
-        const { tokens: newTokens } = data;
+    socket.on("start_bots_with_tokens", function(data) {
+        var newTokens = data.tokens;
         if (newTokens && newTokens.length > 0) {
             dashboardTokens = [];
-            for (const t of newTokens) {
+            for (var i = 0; i < newTokens.length; i++) {
+                var t = newTokens[i];
                 if (t && t.length > 10) {
                     dashboardTokens.push(t);
                 }
             }
-            console.log(`🔄 Updated tokens from dashboard: ${dashboardTokens.length} tokens`);
+            console.log("Updated tokens from dashboard: " + dashboardTokens.length + " tokens");
             startBots();
         } else {
-            console.log('❌ No valid tokens received from dashboard');
+            console.log("No valid tokens received from dashboard");
         }
     });
     
-    socket.on('start_bots', () => startBots());
-    socket.on('stop_bots', () => stopBots());
+    socket.on("start_bots", function() { startBots(); });
+    socket.on("stop_bots", function() { stopBots(); });
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`\n🌐 RINTU DASHBOARD: http://localhost:${PORT}`);
-    console.log(`📱 Open your Railway URL!\n`);
+var PORT = process.env.PORT || 3000;
+server.listen(PORT, function() {
+    console.log("RINTU DASHBOARD: http://localhost:" + PORT);
+    console.log("Open your Railway URL!");
 });
