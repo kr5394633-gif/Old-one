@@ -414,7 +414,7 @@ const HTML = `<!DOCTYPE html>
     <div class="card">
         <div class="card-title">📋 Activity Log</div>
         <div class="log-area" id="logArea">
-            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">RINTU DASHBOARD ready. Add tokens and press START.</span></div>
+            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU DASHBOARD ready. Add tokens and press START.</span></div>
         </div>
     </div>
 </div>
@@ -450,24 +450,24 @@ function getTokensFromInput() {
 
 document.getElementById('saveTokensBtn').addEventListener('click', function() {
     var tokens = getTokensFromInput();
-    if (tokens.length === 0) { addLog('No tokens to save!', 'err'); return; }
+    if (tokens.length === 0) { addLog('❌ No tokens to save!', 'err'); return; }
     try {
         localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-        addLog('Saved ' + tokens.length + ' tokens', 'resp');
-    } catch(e) { addLog('Error saving: ' + e.message, 'err'); }
+        addLog('💾 Saved ' + tokens.length + ' tokens', 'resp');
+    } catch(e) { addLog('❌ Error saving: ' + e.message, 'err'); }
 });
 
 document.getElementById('loadTokensBtn').addEventListener('click', function() {
     try {
         var saved = localStorage.getItem('rintu_tokens');
-        if (!saved) { addLog('No saved tokens found', 'err'); return; }
+        if (!saved) { addLog('❌ No saved tokens found', 'err'); return; }
         var tokens = JSON.parse(saved);
         if (tokens && tokens.length > 0) {
             tokenInput.value = tokens.join('\\n');
             updateTokenStats();
-            addLog('Loaded ' + tokens.length + ' tokens', 'resp');
+            addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
         }
-    } catch(e) { addLog('Error loading: ' + e.message, 'err'); }
+    } catch(e) { addLog('❌ Error loading: ' + e.message, 'err'); }
 });
 
 window.addEventListener('load', function() {
@@ -478,7 +478,7 @@ window.addEventListener('load', function() {
             if (tokens && tokens.length > 0) {
                 tokenInput.value = tokens.join('\\n');
                 updateTokenStats();
-                addLog('Auto-loaded ' + tokens.length + ' tokens', 'sys');
+                addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
             }
         }
     } catch(e) {}
@@ -499,7 +499,7 @@ var socket = io();
 function updateStatus(running, count, title, vol) {
     statusDot.className = 'status-dot ' + (running ? 'online' : 'offline');
     statusText.className = 'status-text ' + (running ? 'online' : 'offline');
-    statusText.textContent = running ? 'ONLINE' : 'OFFLINE';
+    statusText.textContent = running ? '🟢 ONLINE' : '🔴 OFFLINE';
     botCount.textContent = count || 0;
     if (vol !== undefined) volDisplay.textContent = Math.round(vol);
     if (title && title !== 'Nothing playing') {
@@ -539,41 +539,41 @@ socket.on('status_update', function(data) {
 });
 
 socket.on('bots_started', function(data) {
-    addLog('Started ' + data.count + ' bots', 'resp');
+    addLog('🚀 ' + data.count + ' bots started successfully', 'resp');
     updateStatus(true, data.count);
 });
 
 socket.on('bots_stopped', function() {
-    addLog('Bots stopped', 'err');
+    addLog('⛔ All bots stopped', 'err');
     updateStatus(false, 0);
 });
 
 socket.on('bot_status', function(data) {
-    addLog('Bot ' + data.index + '/' + data.total + ': ' + data.tag, 'resp');
+    addLog('🤖 Bot ' + data.index + '/' + data.total + ': ' + data.tag + ' ✅', 'resp');
 });
 
 socket.on('audio_update', function(data) {
     if (data.title) nowPlaying.textContent = data.title;
     if (data.volume) volDisplay.textContent = Math.round(data.volume);
-    if (data.status === 'playing') addLog('Playing: ' + data.title, 'resp');
+    if (data.status === 'playing') addLog('🎵 Now Playing: ' + data.title, 'resp');
 });
 
 socket.on('command_response', function(data) {
     var isErr = data.response.includes('❌') || data.response.includes('Error');
-    addLog(data.command + ' → ' + data.response, isErr ? 'err' : 'resp');
+    addLog('✦ ' + data.command + ' → ' + data.response, isErr ? 'err' : 'resp');
 });
 
 document.getElementById('startBtn').addEventListener('click', function() {
     var tokens = getTokensFromInput();
-    if (tokens.length === 0) { addLog('Add tokens first!', 'err'); return; }
+    if (tokens.length === 0) { addLog('❌ Add tokens first!', 'err'); return; }
     try { localStorage.setItem('rintu_tokens', JSON.stringify(tokens)); } catch(e) {}
     socket.emit('start_bots_with_tokens', { tokens: tokens });
-    addLog('Starting ' + tokens.length + ' bots...', 'sys');
+    addLog('🚀 Starting ' + tokens.length + ' bots...', 'sys');
 });
 
 document.getElementById('stopBtn').addEventListener('click', function() {
     socket.emit('stop_bots');
-    addLog('Stopping bots...', 'sys');
+    addLog('⛔ Stopping bots...', 'sys');
 });
 
 document.getElementById('blastBtn').addEventListener('click', function() {
@@ -593,16 +593,19 @@ function sendCmd(cmd) {
     .then(function(data) {
         if (data.response) {
             var isErr = data.response.includes('❌') || data.response.includes('Error');
-            addLog(cmd + ' → ' + data.response, isErr ? 'err' : 'resp');
+            addLog('✦ ' + cmd + ' → ' + data.response, isErr ? 'err' : 'resp');
         }
     })
-    .catch(function(e) { addLog('Error: ' + e.message, 'err'); });
+    .catch(function(e) { addLog('❌ Error: ' + e.message, 'err'); });
 }
 
 document.getElementById('sendBtn').addEventListener('click', function() {
     var inp = document.getElementById('cmdInput');
-    sendCmd(inp.value.trim());
-    inp.value = '';
+    var cmd = inp.value.trim();
+    if (cmd) {
+        sendCmd(cmd);
+        inp.value = '';
+    }
 });
 
 document.getElementById('cmdInput').addEventListener('keypress', function(e) {
@@ -614,7 +617,7 @@ for (var i = 0; i < cmdBtns.length; i++) {
     cmdBtns[i].addEventListener('click', function() {
         var cmd = this.dataset.cmd;
         if (cmd === 'play') {
-            var url = prompt('Enter YouTube URL:');
+            var url = prompt('🎵 Enter YouTube URL:');
             if (url) sendCmd('play ' + url);
             return;
         }
@@ -817,7 +820,7 @@ function startBots() {
     if (isBotRunning) return;
     
     if (dashboardTokens.length === 0) {
-        console.log('No tokens available!');
+        console.log('❌ No tokens available!');
         return;
     }
     
@@ -834,13 +837,13 @@ function startBots() {
         
         client.on('ready', function() {
             var tag = client.user ? client.user.tag : 'Unknown';
-            console.log('Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
+            console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag, status: 'online' });
             botReadyStatus[index] = true;
         });
         
         client.login(token).catch(function(err) {
-            console.log('Bot ' + (index + 1) + ' login failed: ' + err.message);
+            console.log('❌ Bot ' + (index + 1) + ' login failed: ' + err.message);
         });
         clients.push(client);
     });
@@ -868,10 +871,11 @@ function stopBots() {
     currentUrl = null;
     currentChannelId = null;
     io.emit('bots_stopped');
-    console.log('All bots stopped');
+    console.log('⛔ All bots stopped');
 }
 
-// API Routes
+// ─── API ROUTES ───
+
 app.get('/api/status', function(req, res) {
     res.json({
         isRunning: isBotRunning,
@@ -899,13 +903,16 @@ app.post('/api/command', async function(req, res) {
     var response = '';
 
     try {
+        // ─── HELP ───
         if (lowerCmd === 'help') {
-            response = 'Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n' + dashboardTokens.length + ' tokens loaded';
+            response = '📋 Commands: play <url>, volume <1-20000>, max, blast, doubleblast, superloud, forceloud, bassboost, pungi, pungiset, loudmode, loop, pause, resume, stop, leave, status\n📊 ' + dashboardTokens.length + ' tokens loaded';
         }
+        
+        // ─── PLAY ───
         else if (lowerCmd.startsWith('play ')) {
             var url = command.slice(5).trim();
             if (connections.size === 0) {
-                response = 'Join a voice channel first! Enter a channel ID';
+                response = '❌ Join a voice channel first! Enter a channel ID';
             } else if (isYouTubeUrl(url)) {
                 try {
                     var result = await youtubedl(url, {
@@ -917,34 +924,42 @@ app.post('/api/command', async function(req, res) {
                     currentUrl = result.url;
                     currentTitle = result.title || 'YouTube Audio';
                     startFFmpegStream(currentUrl);
-                    response = 'Now Playing: ' + currentTitle;
+                    response = '🎵 Now Playing: ' + currentTitle;
                 } catch (err) {
-                    response = 'Error: ' + err.message;
+                    response = '❌ Error: ' + err.message;
                 }
             } else {
                 currentUrl = url;
                 currentTitle = 'Direct Audio';
                 startFFmpegStream(url);
-                response = 'Playing: ' + url;
+                response = '🎵 Playing: ' + url;
             }
         }
+        
+        // ─── STOP ───
         else if (lowerCmd === 'stop') {
             stopFFmpeg();
             stopLoudMode();
             players.forEach(function(p) { try { p.stop(); } catch(e){} });
             activeResources.clear();
-            response = 'Playback stopped';
+            response = '⏹️ Playback stopped';
         }
+        
+        // ─── PAUSE ───
         else if (lowerCmd === 'pause') {
             players.forEach(function(p) { try { p.pause(); } catch(e){} });
             isPaused = true;
-            response = 'Paused';
+            response = '⏸️ Paused';
         }
+        
+        // ─── RESUME ───
         else if (lowerCmd === 'resume') {
             players.forEach(function(p) { try { p.unpause(); } catch(e){} });
             isPaused = false;
-            response = 'Resumed';
+            response = '▶️ Resumed';
         }
+        
+        // ─── LEAVE ───
         else if (lowerCmd === 'leave') {
             stopFFmpeg();
             stopLoudMode();
@@ -955,34 +970,42 @@ app.post('/api/command', async function(req, res) {
             activeResources.clear();
             currentUrl = null;
             currentChannelId = null;
-            response = 'Disconnected all bots';
+            response = '👋 Disconnected all bots from voice';
         }
+        
+        // ─── VOLUME ───
         else if (lowerCmd.startsWith('volume ')) {
             var vol = parseInt(command.slice(7).trim(), 10);
             if (isNaN(vol) || vol < 1 || vol > 20000) {
-                response = 'Volume must be 1-20000';
+                response = '❌ Volume must be 1-20000';
             } else {
                 currentVolumeMultiplier = vol / 100;
                 activeResources.forEach(function(res) {
                     if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
                 });
-                response = 'Volume set to ' + vol + '%';
+                response = '🔊 Volume set to ' + vol + '%';
             }
         }
+        
+        // ─── MAX ───
         else if (lowerCmd === 'max') {
             currentVolumeMultiplier = 100.0;
             activeResources.forEach(function(res) {
                 if (res && res.volume) res.volume.setVolume(currentVolumeMultiplier);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'MAXIMUM VOLUME (10000%)';
+            response = '💥 MAXIMUM VOLUME (10000%)';
         }
+        
+        // ─── BLAST ───
         else if (lowerCmd === 'blast') {
             blastMode = !blastMode;
             pungiMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'Blast Mode ' + (blastMode ? 'ACTIVATED' : 'DEACTIVATED');
+            response = '🔥 Blast Mode ' + (blastMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
+        
+        // ─── DOUBLE BLAST ───
         else if (lowerCmd === 'doubleblast') {
             blastMode = true; pungiMode = false; superLoudMode = false; forceLoudMode = false;
             blastVolume = 100.0; currentVolumeMultiplier = 100.0;
@@ -990,111 +1013,143 @@ app.post('/api/command', async function(req, res) {
                 if (res && res.volume) res.volume.setVolume(100.0);
             });
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'DOUBLE BLAST ACTIVATED!';
+            response = '💥💥 DOUBLE BLAST ACTIVATED!';
         }
+        
+        // ─── SUPER LOUD ───
         else if (lowerCmd === 'superloud') {
             superLoudMode = !superLoudMode;
             if (superLoudMode) { blastMode = false; pungiMode = false; forceLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'Super Loud ' + (superLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
+            response = '🔊 Super Loud ' + (superLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
+        
+        // ─── FORCE LOUD ───
         else if (lowerCmd === 'forceloud') {
             forceLoudMode = !forceLoudMode;
             if (forceLoudMode) { blastMode = false; pungiMode = false; superLoudMode = false; }
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'Force Loud ' + (forceLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
+            response = '⚡ Force Loud ' + (forceLoudMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
+        
+        // ─── BASSBOOST ───
         else if (lowerCmd === 'bassboost') {
             isBassboosted = !isBassboosted;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'Bassboost ' + (isBassboosted ? 'ENABLED' : 'DISABLED');
+            response = '🎵 Bassboost ' + (isBassboosted ? 'ENABLED' : 'DISABLED');
         }
+        
+        // ─── PUNGI ───
         else if (lowerCmd === 'pungi') {
             pungiMode = !pungiMode;
             blastMode = false; superLoudMode = false; forceLoudMode = false;
             if (currentUrl) startFFmpegStream(currentUrl);
-            response = 'Pungi Mode ' + (pungiMode ? 'ACTIVATED' : 'DEACTIVATED');
+            response = '🐍 Pungi Mode ' + (pungiMode ? 'ACTIVATED' : 'DEACTIVATED');
         }
+        
+        // ─── PUNGISET ───
         else if (lowerCmd.startsWith('pungiset ')) {
             var val = parseFloat(command.slice(9).trim());
             if (isNaN(val) || val < 1 || val > 200) {
-                response = 'Intensity must be 1-200';
+                response = '❌ Intensity must be 1-200';
             } else {
                 pungiIntensity = val;
                 if (pungiMode && currentUrl) startFFmpegStream(currentUrl);
-                response = 'Pungi intensity set to ' + val + 'x';
+                response = '🐍 Pungi intensity set to ' + val + 'x';
             }
         }
+        
+        // ─── LOUDMODE ───
         else if (lowerCmd === 'loudmode') {
             loudMode = !loudMode;
             if (loudMode) startLoudMode();
             else stopLoudMode();
-            response = 'Loud Mode ' + (loudMode ? 'ENABLED' : 'DISABLED');
+            response = '📢 Loud Mode ' + (loudMode ? 'ENABLED' : 'DISABLED');
         }
+        
+        // ─── LOOP ───
         else if (lowerCmd === 'loop') {
             loopMode = !loopMode;
-            response = 'Loop ' + (loopMode ? 'ENABLED' : 'DISABLED');
+            response = '🔄 Loop ' + (loopMode ? 'ENABLED' : 'DISABLED');
         }
+        
+        // ─── STATUS ───
         else if (lowerCmd === 'status') {
-            response = currentTitle + '\n' + clients.length + '/' + dashboardTokens.length + ' bots online\n' + Math.round(currentVolumeMultiplier * 100) + '%\nLoop: ' + (loopMode ? 'ON' : 'OFF');
+            response = '🎵 ' + currentTitle + '\n📊 ' + clients.length + '/' + dashboardTokens.length + ' bots online\n🔊 ' + Math.round(currentVolumeMultiplier * 100) + '%\n🔄 Loop: ' + (loopMode ? 'ON' : 'OFF');
         }
+        
+        // ─── JOIN VOICE CHANNEL ───
         else if (!isNaN(lowerCmd) && lowerCmd.length >= 10) {
             currentChannelId = lowerCmd;
-            response = 'Connecting ' + clients.length + ' bots to channel ' + lowerCmd;
+            response = '🔊 Connecting ' + clients.length + ' bots to voice channel...';
             
-            // Wait for bots to be ready before connecting
+            // Send immediate response
+            io.emit('command_response', { command: command, response: response });
+            
+            // Wait for bots to be ready and connect
             setTimeout(function() {
+                var connectedCount = 0;
                 for (var i = 0; i < clients.length; i++) {
                     var client = clients[i];
                     if (!client) continue;
                     
-                    client.channels.fetch(lowerCmd).then(function(channel) {
-                        if (channel) {
-                            try {
-                                var conn = joinVoiceChannel({
-                                    channelId: channel.id,
-                                    guildId: channel.guild.id,
-                                    adapterCreator: channel.guild.voiceAdapterCreator,
-                                    selfMute: false,
-                                    selfDeaf: false
-                                });
-                                
-                                conn.on(VoiceConnectionStatus.Ready, function() {
-                                    console.log('Bot connected to voice');
-                                });
-                                
-                                conn.on(VoiceConnectionStatus.Disconnected, function() {
-                                    console.log('Bot disconnected from voice');
-                                });
-                                
-                                var player = createAudioPlayer();
-                                conn.subscribe(player);
-                                
-                                player.on(AudioPlayerStatus.Idle, function() {
-                                    if (loopMode && currentUrl && !isPaused) {
-                                        setTimeout(function() { startFFmpegStream(currentUrl); }, 500);
-                                    }
-                                });
-                                
-                                var index = clients.indexOf(client);
-                                connections.set(index, conn);
-                                players.set(index, player);
-                                console.log('Bot ' + (index + 1) + ' joined voice channel');
-                            } catch(err) {
-                                console.log('Join error:', err.message);
+                    (function(index) {
+                        client.channels.fetch(lowerCmd).then(function(channel) {
+                            if (channel) {
+                                try {
+                                    var conn = joinVoiceChannel({
+                                        channelId: channel.id,
+                                        guildId: channel.guild.id,
+                                        adapterCreator: channel.guild.voiceAdapterCreator,
+                                        selfMute: false,
+                                        selfDeaf: false
+                                    });
+                                    
+                                    conn.on(VoiceConnectionStatus.Ready, function() {
+                                        console.log('✅ Bot ' + (index + 1) + ' connected to voice');
+                                        connectedCount++;
+                                        if (connectedCount === clients.length) {
+                                            io.emit('command_response', { 
+                                                command: '🔊 Voice', 
+                                                response: '✅ All ' + clients.length + ' bots connected to voice channel!' 
+                                            });
+                                        }
+                                    });
+                                    
+                                    conn.on(VoiceConnectionStatus.Disconnected, function() {
+                                        console.log('❌ Bot ' + (index + 1) + ' disconnected from voice');
+                                    });
+                                    
+                                    var player = createAudioPlayer();
+                                    conn.subscribe(player);
+                                    
+                                    player.on(AudioPlayerStatus.Idle, function() {
+                                        if (loopMode && currentUrl && !isPaused) {
+                                            setTimeout(function() { startFFmpegStream(currentUrl); }, 500);
+                                        }
+                                    });
+                                    
+                                    connections.set(index, conn);
+                                    players.set(index, player);
+                                } catch(err) {
+                                    console.log('❌ Join error Bot ' + (index + 1) + ':', err.message);
+                                }
                             }
-                        }
-                    }).catch(function(err) {
-                        console.log('Fetch channel error:', err.message);
-                    });
+                        }).catch(function(err) {
+                            console.log('❌ Fetch error Bot ' + (index + 1) + ':', err.message);
+                        });
+                    })(i);
                 }
-            }, 2000);
+            }, 3000);
+            
+            return res.json({ response: response });
         }
+        
         else {
-            response = 'Unknown command. Type help for list.';
+            response = '❌ Unknown command. Type "help" for list.';
         }
     } catch (err) {
-        response = 'Error: ' + err.message;
+        response = '❌ Error: ' + err.message;
     }
 
     io.emit('command_response', { command: command, response: response });
@@ -1103,7 +1158,7 @@ app.post('/api/command', async function(req, res) {
 
 // ─── SOCKET.IO ───
 io.on('connection', function(socket) {
-    console.log('Dashboard connected');
+    console.log('📱 Dashboard connected');
     socket.emit('status_update', {
         isRunning: isBotRunning,
         botCount: clients.length,
@@ -1122,10 +1177,10 @@ io.on('connection', function(socket) {
                     dashboardTokens.push(t);
                 }
             }
-            console.log('Updated tokens from dashboard: ' + dashboardTokens.length + ' tokens');
+            console.log('🔄 Updated tokens from dashboard: ' + dashboardTokens.length + ' tokens');
             startBots();
         } else {
-            console.log('No valid tokens received from dashboard');
+            console.log('❌ No valid tokens received from dashboard');
         }
     });
     
@@ -1133,9 +1188,9 @@ io.on('connection', function(socket) {
     socket.on('stop_bots', function() { stopBots(); });
 });
 
-// Start server
+// ─── START SERVER ───
 var PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
     console.log('\n🌸 RINTU DASHBOARD: http://localhost:' + PORT);
-    console.log('Open your Railway URL!\n');
+    console.log('📱 Open your Railway URL!\n');
 });
