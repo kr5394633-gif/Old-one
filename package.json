@@ -1,7 +1,7 @@
 {
-  "name": "rintu-fast",
+  "name": "rintu-final",
   "version": "1.0.0",
-  "description": "🌸 RINTU - Lightning Fast",
+  "description": "🌸 RINTU FINAL - Everything Works",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,6 +11,7 @@
     "socket.io": "^4.6.1",
     "discord.js-selfbot-v13": "3.1.2",
     "ytdl-core": "^4.11.5",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }
