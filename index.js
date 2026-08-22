@@ -6,6 +6,7 @@ const { Client } = require('discord.js-selfbot-v13');
 const ytdl = require('ytdl-core');
 const ffmpeg = require('ffmpeg-static');
 const { spawn } = require('child_process');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,9 +16,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const JWT_SECRET = 'RINTU_FINAL_2026';
-const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
 
-// ─── SIMPLE COOKIE PARSER (NO DEPENDENCY) ───
+// ─── COOKIE PARSER ───
 function parseCookies(cookieHeader) {
     const cookies = {};
     if (!cookieHeader) return cookies;
@@ -235,7 +235,6 @@ const HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div id="app">
-    <!-- LOGIN -->
     <div id="loginScreen" class="container">
         <div class="card login-box">
             <h1 style="font-size:2em;background:linear-gradient(135deg,#ff6b9d,#c084fc,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;">🌸 RINTU</h1>
@@ -247,7 +246,6 @@ const HTML = `<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- DASHBOARD -->
     <div id="dashboardScreen" class="container" style="display:none;">
         <div class="header">
             <h1>🌸 RINTU</h1>
@@ -369,13 +367,13 @@ function initDashboard() {
     window.addLog = addLog;
 
     function updateTokenStats() {
-        const lines = tokenInput.value.split('\\n').filter(l => l.trim().length > 10);
+        const lines = tokenInput.value.split('\n').filter(l => l.trim().length > 10);
         document.getElementById('tokenCount').textContent = lines.length;
     }
     tokenInput.addEventListener('input', updateTokenStats);
 
     function getTokens() {
-        return tokenInput.value.split('\\n').map(l => l.trim()).filter(l => l.length > 10);
+        return tokenInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 10);
     }
 
     document.getElementById('saveTokensBtn').onclick = function() {
@@ -389,7 +387,7 @@ function initDashboard() {
         const saved = localStorage.getItem('rintu_tokens');
         if(!saved) { addLog('❌ No saved tokens', 'err'); return; }
         const tokens = JSON.parse(saved);
-        tokenInput.value = tokens.join('\\n');
+        tokenInput.value = tokens.join('\n');
         updateTokenStats();
         addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
     };
@@ -399,7 +397,7 @@ function initDashboard() {
         if(saved) {
             try {
                 const tokens = JSON.parse(saved);
-                tokenInput.value = tokens.join('\\n');
+                tokenInput.value = tokens.join('\n');
                 updateTokenStats();
             } catch(e) {}
         }
@@ -472,7 +470,6 @@ function initDashboard() {
     fetch('/api/status').then(r => r.json()).then(d => updateStatus(d.isRunning, d.botCount, d.currentTitle)).catch(console.error);
 }
 
-// Auto-login check
 window.onload = function() {
     fetch('/api/check-auth')
         .then(r => r.json())
@@ -538,6 +535,7 @@ let players = {};
 let currentTitle = 'Nothing playing';
 let currentVolume = 1.0;
 let keepAliveIntervals = {};
+let voiceStates = {};
 
 function startBots() {
     if (isBotRunning) return;
@@ -564,42 +562,58 @@ function startBots() {
 
 function stopBots() {
     isBotRunning = false;
-    
-    // Stop all players
     for (const key in players) {
         try { players[key].stop(); } catch(e) {}
     }
     players = {};
-    
-    // Destroy all connections
     for (const key in connections) {
         try { connections[key].destroy(); } catch(e) {}
     }
     connections = {};
-    
-    // Clear keep-alive intervals
     for (const key in keepAliveIntervals) {
         clearInterval(keepAliveIntervals[key]);
     }
     keepAliveIntervals = {};
-    
-    // Destroy clients
     clients.forEach(c => { try { c.destroy(); } catch(e) {} });
     clients = [];
     io.emit('bots_stopped');
     console.log('⛔ All bots stopped');
 }
 
-// ─── KEEP BOTS IN VOICE FOREVER ───
+// ─── JOIN VOICE USING RAW API ───
+async function joinVoiceChannelRaw(client, channelId) {
+    try {
+        const channel = await client.channels.fetch(channelId);
+        if (!channel) return null;
+        
+        // Get guild and voice state
+        const guild = channel.guild;
+        const voiceState = guild.voiceStates.cache.get(client.user.id);
+        
+        // If already connected, return
+        if (voiceState && voiceState.channelId === channelId) {
+            return voiceState;
+        }
+        
+        // Connect using the built-in method
+        const connection = client.voice.connect(channelId);
+        return connection;
+    } catch (err) {
+        console.log('Join error:', err.message);
+        return null;
+    }
+}
+
+// ─── KEEP BOTS IN VOICE ───
 function keepBotsInVoice() {
     for (const key in connections) {
         if (connections[key]) {
             try {
-                // Ping the connection to keep it alive
+                // Send a keepalive ping
                 connections[key].setSpeaking(true);
                 setTimeout(() => {
                     try { connections[key].setSpeaking(false); } catch(e) {}
-                }, 100);
+                }, 200);
             } catch(e) {}
         }
     }
@@ -683,52 +697,66 @@ app.post('/api/command', async (req, res) => {
                 io.emit('audio_update', { volume: Math.round(currentVolume * 100) });
             }
         } else if (lower === 'leave') {
-            if (connections[0]) {
-                connections[0].destroy();
-                connections = {};
-                players = {};
-                for (const key in keepAliveIntervals) {
-                    clearInterval(keepAliveIntervals[key]);
-                }
-                keepAliveIntervals = {};
-                response = '👋 Left voice';
-            } else response = '❌ Not in voice';
+            for (const key in connections) {
+                try { connections[key].destroy(); } catch(e) {}
+            }
+            connections = {};
+            players = {};
+            for (const key in keepAliveIntervals) {
+                clearInterval(keepAliveIntervals[key]);
+            }
+            keepAliveIntervals = {};
+            response = '👋 Left voice';
         } else if (!isNaN(lower) && lower.length >= 10) {
             const channelId = lower;
             let count = 0;
+            let errors = [];
             
             for (let i = 0; i < clients.length; i++) {
                 const client = clients[i];
                 if (!client) continue;
                 
                 try {
-                    const channel = await client.channels.fetch(channelId);
-                    if (!channel) continue;
+                    console.log('🔄 Bot ' + (i + 1) + ' joining channel ' + channelId);
                     
-                    const connection = joinVoiceChannel({
-                        channelId: channel.id,
-                        guildId: channel.guild.id,
-                        adapterCreator: channel.guild.voiceAdapterCreator,
-                        selfMute: false,
-                        selfDeaf: false,
-                        group: client.user.id
-                    });
+                    // Method 1: Use the voice connect method
+                    const connection = await joinVoiceChannelRaw(client, channelId);
                     
-                    connections[i] = connection;
-                    count++;
-                    
-                    // Keep bot in voice FOREVER
-                    keepAliveIntervals[i] = setInterval(() => {
-                        keepBotsInVoice();
-                    }, 30000);
-                    
+                    if (connection) {
+                        connections[i] = connection;
+                        count++;
+                        console.log('✅ Bot ' + (i + 1) + ' connected to voice');
+                        
+                        // Set up keep-alive for this bot
+                        keepAliveIntervals[i] = setInterval(() => {
+                            try {
+                                if (connections[i]) {
+                                    connections[i].setSpeaking(true);
+                                    setTimeout(() => {
+                                        try { connections[i].setSpeaking(false); } catch(e) {}
+                                    }, 100);
+                                }
+                            } catch(e) {}
+                        }, 15000);
+                    } else {
+                        errors.push('Bot ' + (i + 1) + ' failed');
+                    }
                 } catch (err) {
-                    console.log('❌ Bot ' + (i + 1) + ' join error');
+                    errors.push('Bot ' + (i + 1) + ': ' + err.message);
+                    console.log('❌ Bot ' + (i + 1) + ' join error:', err.message);
                 }
             }
-            response = '✅ Connected ' + count + '/' + clients.length + ' bots (they will stay forever!)';
+            
+            if (count > 0) {
+                response = '✅ Connected ' + count + '/' + clients.length + ' bots to voice! They will stay forever!';
+                if (errors.length > 0) {
+                    response += ' ⚠️ Errors: ' + errors.join(', ');
+                }
+            } else {
+                response = '❌ Failed to connect any bots. Make sure the channel ID is correct and bots are in the server!';
+            }
         } else {
-            response = '❌ Unknown command';
+            response = '❌ Unknown command. Try: play <url>, stop, pause, resume, volume 1-2000, leave, or channel_id';
         }
     } catch (err) {
         response = '❌ Error: ' + err.message;
