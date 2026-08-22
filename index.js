@@ -13,7 +13,7 @@ const io = socketIo(server);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── HTML ───
+// ─── HTML - Using template literal properly ───
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -199,7 +199,7 @@ const HTML = `<!DOCTYPE html>
 <div class="container">
     <div class="header">
         <h1>🌸 RINTU</h1>
-        <div class="sub">✦ DEBUG VERSION ✦</div>
+        <div class="sub">✦ WORKING DASHBOARD ✦</div>
     </div>
 
     <div class="card">
@@ -269,7 +269,7 @@ const HTML = `<!DOCTYPE html>
     <div class="card">
         <div class="card-title">📋 Log</div>
         <div class="log-area" id="logArea">
-            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU DEBUG ready</span></div>
+            <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU ready</span></div>
         </div>
     </div>
 </div>
@@ -277,190 +277,212 @@ const HTML = `<!DOCTYPE html>
 <div id="toast" class="toast"></div>
 
 <script>
-// ─── TOAST ───
+// ============================================================
+// ALL JAVASCRIPT - SIMPLIFIED AND WORKING
+// ============================================================
+
 function showToast(msg, type) {
-    const toast = document.getElementById('toast');
+    var toast = document.getElementById('toast');
     toast.textContent = msg;
     toast.style.borderColor = type === 'error' ? '#f87171' : '#34d399';
     toast.className = 'toast show';
-    setTimeout(() => { toast.className = 'toast'; }, 3000);
+    setTimeout(function() { toast.className = 'toast'; }, 3000);
 }
 
-// ─── TOKENS ───
 function getTokens() {
-    const text = document.getElementById('tokenInput').value;
-    return text.split('\\n').map(l => l.trim()).filter(l => l.length > 10);
+    var text = document.getElementById('tokenInput').value;
+    var lines = text.split('\n');
+    var result = [];
+    for (var i = 0; i < lines.length; i++) {
+        var token = lines[i].trim();
+        if (token.length > 10) {
+            result.push(token);
+        }
+    }
+    return result;
 }
 
 function updateTokenCount() {
-    const tokens = getTokens();
+    var tokens = getTokens();
     document.getElementById('tokenCount').textContent = tokens.length;
 }
 
 document.getElementById('tokenInput').addEventListener('input', updateTokenCount);
 
-// ─── SAVE ───
+// Save tokens
 document.getElementById('saveBtn').onclick = function() {
-    const tokens = getTokens();
+    var tokens = getTokens();
     if (tokens.length === 0) {
-        showToast('❌ No tokens to save!', 'error');
+        showToast('No tokens to save!', 'error');
         return;
     }
     try {
         localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-        showToast('💾 Saved ' + tokens.length + ' tokens!', 'success');
-        addLog('💾 Saved ' + tokens.length + ' tokens', 'resp');
+        showToast('Saved ' + tokens.length + ' tokens!', 'success');
+        addLog('Saved ' + tokens.length + ' tokens', 'resp');
     } catch (e) {
-        showToast('❌ Error: ' + e.message, 'error');
+        showToast('Error: ' + e.message, 'error');
     }
 };
 
-// ─── LOAD ───
+// Load tokens
 document.getElementById('loadBtn').onclick = function() {
     try {
-        const saved = localStorage.getItem('rintu_tokens');
+        var saved = localStorage.getItem('rintu_tokens');
         if (!saved) {
-            showToast('❌ No saved tokens!', 'error');
+            showToast('No saved tokens!', 'error');
             return;
         }
-        const tokens = JSON.parse(saved);
+        var tokens = JSON.parse(saved);
         if (tokens && tokens.length > 0) {
-            document.getElementById('tokenInput').value = tokens.join('\\n');
+            document.getElementById('tokenInput').value = tokens.join('\n');
             updateTokenCount();
-            showToast('📂 Loaded ' + tokens.length + ' tokens!', 'success');
-            addLog('📂 Loaded ' + tokens.length + ' tokens', 'resp');
+            showToast('Loaded ' + tokens.length + ' tokens!', 'success');
+            addLog('Loaded ' + tokens.length + ' tokens', 'resp');
         }
     } catch (e) {
-        showToast('❌ Error: ' + e.message, 'error');
+        showToast('Error: ' + e.message, 'error');
     }
 };
 
-// ─── AUTO LOAD ───
-(function autoLoad() {
+// Auto load
+(function() {
     try {
-        const saved = localStorage.getItem('rintu_tokens');
+        var saved = localStorage.getItem('rintu_tokens');
         if (saved) {
-            const tokens = JSON.parse(saved);
+            var tokens = JSON.parse(saved);
             if (tokens && tokens.length > 0) {
-                document.getElementById('tokenInput').value = tokens.join('\\n');
+                document.getElementById('tokenInput').value = tokens.join('\n');
                 updateTokenCount();
-                setTimeout(() => {
-                    addLog('📂 Auto-loaded ' + tokens.length + ' tokens', 'sys');
+                setTimeout(function() {
+                    addLog('Auto-loaded ' + tokens.length + ' tokens', 'sys');
                 }, 500);
             }
         }
     } catch (e) {}
 })();
 
-// ─── LOG ───
+// Log function
 function addLog(msg, type) {
     if (!type) type = 'sys';
-    const time = new Date().toLocaleTimeString();
-    const entry = document.createElement('div');
+    var time = new Date().toLocaleTimeString();
+    var entry = document.createElement('div');
     entry.className = 'log-entry';
     entry.innerHTML = '<span class="time">[' + time + ']</span> <span class="' + type + '">' + msg + '</span>';
     document.getElementById('logArea').appendChild(entry);
     document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
 }
 
-// ─── SOCKET ───
-const socket = io();
+// Socket
+var socket = io();
 
 function updateStatus(running, count, title) {
-    const dot = document.getElementById('statusDot');
-    const text = document.getElementById('statusText');
+    var dot = document.getElementById('statusDot');
+    var text = document.getElementById('statusText');
     dot.className = 'status-dot ' + (running ? 'online' : 'offline');
     text.className = 'status-text ' + (running ? 'online' : 'offline');
-    text.textContent = running ? '🟢 ONLINE' : '🔴 OFFLINE';
+    text.textContent = running ? 'ONLINE' : 'OFFLINE';
     document.getElementById('botCount').textContent = count || 0;
     if (title) document.getElementById('nowPlaying').textContent = title;
 }
 
-socket.on('connect', () => {
-    addLog('🔌 Connected to server', 'sys');
+socket.on('connect', function() {
+    addLog('Connected to server', 'sys');
 });
 
-socket.on('status_update', (d) => updateStatus(d.isRunning, d.botCount, d.currentTitle));
-socket.on('bots_started', (d) => { addLog('🚀 ' + d.count + ' bots started', 'resp'); updateStatus(true, d.count); });
-socket.on('bots_stopped', () => { addLog('⛔ Bots stopped', 'err'); updateStatus(false, 0); });
-socket.on('bot_status', (d) => addLog('🤖 Bot ' + d.index + '/' + d.total + ': ' + d.tag, 'resp'));
-socket.on('audio_update', (d) => { if(d.title) document.getElementById('nowPlaying').textContent = d.title; if(d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume); });
-socket.on('command_response', (d) => addLog('✦ ' + d.command + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp'));
+socket.on('status_update', function(d) {
+    updateStatus(d.isRunning, d.botCount, d.currentTitle);
+});
 
-// ─── START VIA HTTP ───
+socket.on('bots_started', function(d) {
+    addLog('Started ' + d.count + ' bots', 'resp');
+    updateStatus(true, d.count);
+});
+
+socket.on('bots_stopped', function() {
+    addLog('Bots stopped', 'err');
+    updateStatus(false, 0);
+});
+
+socket.on('bot_status', function(d) {
+    addLog('Bot ' + d.index + '/' + d.total + ': ' + d.tag, 'resp');
+});
+
+socket.on('audio_update', function(d) {
+    if (d.title) document.getElementById('nowPlaying').textContent = d.title;
+    if (d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume);
+});
+
+socket.on('command_response', function(d) {
+    var isErr = d.response.indexOf('❌') !== -1;
+    addLog(d.command + ' → ' + d.response, isErr ? 'err' : 'resp');
+});
+
+// ─── START BUTTON ───
 document.getElementById('startBtn').onclick = function() {
-    addLog('🔄 START button clicked!', 'sys');
-    
-    const tokens = getTokens();
-    addLog('📊 Found ' + tokens.length + ' tokens', 'sys');
+    addLog('START button clicked!', 'sys');
+    var tokens = getTokens();
+    addLog('Found ' + tokens.length + ' tokens', 'sys');
     
     if (tokens.length === 0) {
-        showToast('❌ Add tokens first!', 'error');
-        addLog('❌ No tokens to start', 'err');
+        showToast('Add tokens first!', 'error');
+        addLog('No tokens to start', 'err');
         return;
     }
     
-    // Show first token (masked) for debugging
-    const firstToken = tokens[0];
-    const maskedToken = firstToken.substring(0, 10) + '...' + firstToken.substring(firstToken.length - 5);
-    addLog('🔑 First token: ' + maskedToken, 'sys');
-    
     localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    addLog('💾 Saved tokens to localStorage', 'sys');
-    
-    addLog('📤 Sending HTTP request to /api/start-bots...', 'sys');
+    addLog('Saving tokens to localStorage', 'sys');
+    addLog('Sending to server via HTTP POST...', 'sys');
     
     fetch('/api/start-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokens: tokens })
     })
-    .then(response => {
-        addLog('📥 Received response! Status: ' + response.status, 'sys');
+    .then(function(response) {
+        addLog('Response status: ' + response.status, 'sys');
         return response.json();
     })
-    .then(data => {
-        addLog('📦 Response data: ' + JSON.stringify(data), 'sys');
+    .then(function(data) {
+        addLog('Response: ' + JSON.stringify(data), 'sys');
         if (data.success) {
-            addLog('🚀 ' + data.count + ' bots starting...', 'resp');
-            showToast('🚀 Starting ' + data.count + ' bots...', 'success');
+            addLog('Starting ' + data.count + ' bots...', 'resp');
+            showToast('Starting ' + data.count + ' bots!', 'success');
         } else {
-            addLog('❌ ' + data.error, 'err');
-            showToast('❌ ' + data.error, 'error');
+            addLog('Error: ' + data.error, 'err');
+            showToast('Error: ' + data.error, 'error');
         }
     })
-    .catch(e => {
-        addLog('❌ FETCH ERROR: ' + e.message, 'err');
-        showToast('❌ Error: ' + e.message, 'error');
+    .catch(function(e) {
+        addLog('Fetch error: ' + e.message, 'err');
+        showToast('Error: ' + e.message, 'error');
     });
 };
 
-// ─── STOP ───
+// ─── STOP BUTTON ───
 document.getElementById('stopBtn').onclick = function() {
-    addLog('🔄 STOP button clicked!', 'sys');
-    
+    addLog('STOP button clicked!', 'sys');
     fetch('/api/stop-bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.success) {
-            addLog('⛔ Bots stopped', 'sys');
-            showToast('⛔ Bots stopped', 'success');
+            addLog('Bots stopped', 'sys');
+            showToast('Bots stopped', 'success');
         }
     })
-    .catch(e => {
-        addLog('❌ Error: ' + e.message, 'err');
-        showToast('❌ Error: ' + e.message, 'error');
+    .catch(function(e) {
+        addLog('Error: ' + e.message, 'err');
     });
 };
 
 // ─── JOIN SERVER ───
 document.getElementById('joinBtn').onclick = function() {
-    const invite = document.getElementById('inviteInput').value.trim();
+    var invite = document.getElementById('inviteInput').value.trim();
     if (!invite) {
-        showToast('❌ Enter invite link!', 'error');
+        showToast('Enter invite link!', 'error');
         return;
     }
     fetch('/api/join-server', {
@@ -468,20 +490,19 @@ document.getElementById('joinBtn').onclick = function() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invite: invite })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.message) {
-            addLog('✅ ' + data.message, 'resp');
-            showToast('✅ Bot joined server!', 'success');
+            addLog(data.message, 'resp');
+            showToast('Joined server!', 'success');
         }
         if (data.error) {
-            addLog('❌ ' + data.error, 'err');
-            showToast('❌ ' + data.error, 'error');
+            addLog('Error: ' + data.error, 'err');
+            showToast('Error: ' + data.error, 'error');
         }
     })
-    .catch(e => {
-        addLog('❌ Error: ' + e.message, 'err');
-        showToast('❌ Error: ' + e.message, 'error');
+    .catch(function(e) {
+        addLog('Error: ' + e.message, 'err');
     });
 };
 
@@ -493,23 +514,21 @@ function sendCmd(cmd) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: cmd })
     })
-    .then(r => r.json())
-    .then(d => {
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
         if (d.response) {
-            addLog('✦ ' + cmd + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp');
-            if (!d.response.includes('❌')) {
-                showToast('✅ ' + d.response, 'success');
-            }
+            var isErr = d.response.indexOf('❌') !== -1;
+            addLog(cmd + ' → ' + d.response, isErr ? 'err' : 'resp');
+            if (!isErr) showToast(d.response, 'success');
         }
     })
-    .catch(e => {
-        addLog('❌ Error: ' + e.message, 'err');
-        showToast('❌ Error: ' + e.message, 'error');
+    .catch(function(e) {
+        addLog('Error: ' + e.message, 'err');
     });
 }
 
 document.getElementById('sendBtn').onclick = function() {
-    const inp = document.getElementById('cmdInput');
+    var inp = document.getElementById('cmdInput');
     sendCmd(inp.value.trim());
     inp.value = '';
 };
@@ -519,45 +538,49 @@ document.getElementById('cmdInput').onkeypress = function(e) {
 };
 
 // ─── QUICK COMMANDS ───
-document.querySelectorAll('.cmd-btn').forEach(function(btn) {
-    btn.onclick = function() {
-        const cmd = this.dataset.cmd;
+var btns = document.querySelectorAll('.cmd-btn');
+for (var i = 0; i < btns.length; i++) {
+    btns[i].onclick = function() {
+        var cmd = this.dataset.cmd;
         if (cmd === 'play') {
-            const url = prompt('🎵 Enter YouTube URL:');
+            var url = prompt('Enter YouTube URL:');
             if (url) sendCmd('play ' + url);
             return;
         }
         sendCmd(cmd);
     };
-});
+}
 
 // ─── INITIAL STATUS ───
-fetch('/api/status').then(r => r.json()).then(d => {
-    updateStatus(d.isRunning, d.botCount, d.currentTitle);
-}).catch(console.error);
+fetch('/api/status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        updateStatus(d.isRunning, d.botCount, d.currentTitle);
+    })
+    .catch(console.error);
 </script>
 </body>
 </html>`;
 
 // ─── SERVE ───
-app.get('/', (req, res) => {
+app.get('/', function(req, res) {
     res.send(HTML);
 });
 
 // ─── BOT ───
-let dashboardTokens = [];
-let isBotRunning = false;
-let clients = [];
-let connections = {};
-let players = {};
-let currentTitle = 'Nothing playing';
-let currentVolume = 1.0;
-let keepAliveIntervals = {};
+var dashboardTokens = [];
+var isBotRunning = false;
+var clients = [];
+var connections = {};
+var players = {};
+var currentTitle = 'Nothing playing';
+var currentVolume = 1.0;
+var keepAliveIntervals = {};
 
-console.log('🚀 SERVER STARTED - DEBUG MODE');
+console.log('🚀 SERVER STARTED!');
 
 function startBots(tokens) {
-    console.log('🔥 startBots() called with', tokens ? tokens.length : 0, 'tokens');
+    console.log('🔥 startBots() called with ' + tokens.length + ' tokens');
     
     if (isBotRunning) {
         console.log('⚠️ Bots already running');
@@ -565,39 +588,43 @@ function startBots(tokens) {
     }
     
     if (!tokens || tokens.length === 0) {
-        console.log('❌ No tokens provided');
-        return { success: false, error: 'No tokens provided' };
+        console.log('❌ No tokens');
+        return { success: false, error: 'No tokens' };
     }
 
     dashboardTokens = tokens;
     console.log('🚀 Starting ' + dashboardTokens.length + ' bots...');
     isBotRunning = true;
     
-    dashboardTokens.forEach((token, index) => {
-        console.log('🔑 Logging in bot ' + (index + 1) + '...');
-        const client = new Client({ 
-            checkUpdate: false,
-            ws: { properties: { $browser: 'Discord iOS' } }
-        });
+    for (var i = 0; i < dashboardTokens.length; i++) {
+        (function(index) {
+            var token = dashboardTokens[index];
+            console.log('🔑 Logging in bot ' + (index + 1) + '...');
+            
+            var client = new Client({ 
+                checkUpdate: false,
+                ws: { properties: { $browser: 'Discord iOS' } }
+            });
 
-        client.on('ready', () => {
-            const tag = client.user ? client.user.tag : 'Unknown';
-            console.log('✅ Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag + ' ONLINE!');
-            io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
-        });
+            client.on('ready', function() {
+                var tag = client.user ? client.user.tag : 'Unknown';
+                console.log('✅ Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag + ' ONLINE!');
+                io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
+            });
 
-        client.on('error', (err) => {
-            console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
-        });
+            client.on('error', function(err) {
+                console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
+            });
 
-        client.login(token).catch(err => {
-            console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
-        });
-        clients.push(client);
-    });
+            client.login(token).catch(function(err) {
+                console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
+            });
+            clients.push(client);
+        })(i);
+    }
     
     io.emit('bots_started', { count: dashboardTokens.length });
-    console.log('✅ startBots() completed, emitted bots_started event');
+    console.log('✅ startBots() completed');
     return { success: true, count: dashboardTokens.length };
 }
 
@@ -605,31 +632,29 @@ function stopBots() {
     console.log('🔥 stopBots() called');
     
     if (!isBotRunning) {
-        console.log('⚠️ Bots not running');
-        return { success: false, error: 'Bots not running' };
+        return { success: false, error: 'Not running' };
     }
     
-    console.log('⛔ Stopping all bots...');
     isBotRunning = false;
     
-    for (const key in players) {
+    for (var key in players) {
         try { players[key].stop(); } catch(e) {}
     }
     players = {};
     
-    for (const key in connections) {
-        try { connections[key].destroy(); } catch(e) {}
+    for (var key2 in connections) {
+        try { connections[key2].destroy(); } catch(e) {}
     }
     connections = {};
     
-    for (const key in keepAliveIntervals) {
-        clearInterval(keepAliveIntervals[key]);
+    for (var key3 in keepAliveIntervals) {
+        clearInterval(keepAliveIntervals[key3]);
     }
     keepAliveIntervals = {};
     
-    clients.forEach(c => { 
-        try { c.destroy(); } catch(e) {} 
-    });
+    for (var i = 0; i < clients.length; i++) {
+        try { clients[i].destroy(); } catch(e) {}
+    }
     clients = [];
     
     io.emit('bots_stopped');
@@ -637,66 +662,58 @@ function stopBots() {
     return { success: true };
 }
 
-// ─── API ROUTES ───
+// ─── API ───
 
-// START BOTS VIA HTTP
-app.post('/api/start-bots', (req, res) => {
-    console.log('📨 POST /api/start-bots received');
+app.post('/api/start-bots', function(req, res) {
+    console.log('📨 POST /api/start-bots');
     console.log('📦 Body:', req.body);
     
-    const { tokens } = req.body;
+    var tokens = req.body.tokens;
     if (!tokens || tokens.length === 0) {
-        console.log('❌ No tokens in request');
-        return res.json({ success: false, error: 'No tokens provided' });
+        return res.json({ success: false, error: 'No tokens' });
     }
     
-    console.log('✅ Received ' + tokens.length + ' tokens');
-    const result = startBots(tokens);
-    console.log('📤 Response:', result);
+    var result = startBots(tokens);
     res.json(result);
 });
 
-// STOP BOTS VIA HTTP
-app.post('/api/stop-bots', (req, res) => {
-    console.log('📨 POST /api/stop-bots received');
-    const result = stopBots();
+app.post('/api/stop-bots', function(req, res) {
+    console.log('📨 POST /api/stop-bots');
+    var result = stopBots();
     res.json(result);
 });
 
-// JOIN SERVER
-app.post('/api/join-server', async (req, res) => {
-    const { invite } = req.body;
-    if (!invite) return res.json({ error: 'No invite provided' });
+app.post('/api/join-server', async function(req, res) {
+    var invite = req.body.invite;
+    if (!invite) return res.json({ error: 'No invite' });
     
     if (clients.length === 0) {
         return res.json({ error: 'Start bots first!' });
     }
 
-    let inviteCode = invite;
-    if (invite.includes('discord.gg/')) {
+    var inviteCode = invite;
+    if (invite.indexOf('discord.gg/') !== -1) {
         inviteCode = invite.split('discord.gg/')[1].split('/')[0].split('?')[0];
     }
-    if (invite.includes('discord.com/invite/')) {
+    if (invite.indexOf('discord.com/invite/') !== -1) {
         inviteCode = invite.split('discord.com/invite/')[1].split('/')[0].split('?')[0];
     }
 
-    let results = [];
-    for (let i = 0; i < clients.length; i++) {
-        const client = clients[i];
+    var results = [];
+    for (var i = 0; i < clients.length; i++) {
+        var client = clients[i];
         if (!client) continue;
         
         try {
-            const inviteObj = await client.fetchInvite(inviteCode);
+            var inviteObj = await client.fetchInvite(inviteCode);
             if (inviteObj) {
                 await client.acceptInvite(inviteCode);
-                results.push('✅ Bot ' + (i + 1) + ' joined: ' + (inviteObj.guild?.name || 'Server'));
-                console.log('✅ Bot ' + (i + 1) + ' joined server');
+                results.push('Bot ' + (i + 1) + ' joined');
             }
         } catch (err1) {
-            console.log('⚠️ Bot ' + (i + 1) + ' failed:', err1.message);
             try {
-                const response = await axios.post(
-                    `https://discord.com/api/v9/invites/${inviteCode}`,
+                var response = await axios.post(
+                    'https://discord.com/api/v9/invites/' + inviteCode,
                     {},
                     {
                         headers: {
@@ -706,34 +723,20 @@ app.post('/api/join-server', async (req, res) => {
                     }
                 );
                 if (response.data && response.data.guild) {
-                    results.push('✅ Bot ' + (i + 1) + ' joined: ' + response.data.guild.name);
+                    results.push('Bot ' + (i + 1) + ' joined');
                 }
             } catch (err2) {
-                results.push('❌ Bot ' + (i + 1) + ' failed: ' + err2.message);
+                results.push('Bot ' + (i + 1) + ' failed');
             }
         }
     }
 
-    const message = results.join('\n');
-    io.emit('command_response', { command: '🔗 Join Server', response: message });
+    var message = results.join('\n');
+    io.emit('command_response', { command: 'Join Server', response: message });
     res.json({ message: message });
 });
 
-// ─── JOIN VOICE ───
-async function joinVoiceChannelRaw(client, channelId) {
-    try {
-        const channel = await client.channels.fetch(channelId);
-        if (!channel) return null;
-        const connection = client.voice.connect(channelId);
-        return connection;
-    } catch (err) {
-        console.log('Join voice error:', err.message);
-        return null;
-    }
-}
-
-// ─── STATUS ───
-app.get('/api/status', (req, res) => {
+app.get('/api/status', function(req, res) {
     res.json({
         isRunning: isBotRunning,
         botCount: clients.length,
@@ -743,34 +746,33 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// ─── COMMAND ───
-app.post('/api/command', async (req, res) => {
-    const command = req.body.command;
+app.post('/api/command', async function(req, res) {
+    var command = req.body.command;
     if (!command) return res.json({ error: 'No command' });
 
-    const lower = command.toLowerCase().trim();
-    let response = '';
+    var lower = command.toLowerCase().trim();
+    var response = '';
 
     try {
-        if (lower.startsWith('play ')) {
-            const url = command.slice(5).trim();
+        if (lower.indexOf('play ') === 0) {
+            var url = command.slice(5).trim();
             if (!connections[0]) {
-                response = '❌ Join voice first! Send channel ID';
+                response = 'Join voice first! Send channel ID';
             } else {
                 try {
-                    const stream = ytdl(url, { 
+                    var stream = ytdl(url, { 
                         filter: 'audioonly',
                         quality: 'highestaudio',
                         highWaterMark: 1 << 25
                     });
                     
-                    const resource = createAudioResource(stream, {
+                    var resource = createAudioResource(stream, {
                         inputType: StreamType.Arbitrary,
                         inlineVolume: true
                     });
                     
                     resource.volume.setVolume(currentVolume * 2);
-                    const player = createAudioPlayer();
+                    var player = createAudioPlayer();
                     player.play(resource);
                     
                     if (connections[0]) {
@@ -778,69 +780,70 @@ app.post('/api/command', async (req, res) => {
                     }
                     players[0] = player;
                     
-                    currentTitle = '🎵 ' + url;
+                    currentTitle = 'Playing';
                     io.emit('audio_update', { 
                         status: 'playing', 
                         title: currentTitle, 
                         volume: Math.round(currentVolume * 100) 
                     });
-                    response = '🎵 Now playing!';
+                    response = 'Now playing!';
                 } catch (err) {
-                    response = '❌ Error: ' + err.message;
+                    response = 'Error: ' + err.message;
                 }
             }
         } else if (lower === 'stop') {
-            if (players[0]) { players[0].stop(); response = '⏹️ Stopped'; }
-            else response = '❌ Nothing playing';
+            if (players[0]) { players[0].stop(); response = 'Stopped'; }
+            else response = 'Nothing playing';
         } else if (lower === 'pause') {
-            if (players[0]) { players[0].pause(); response = '⏸️ Paused'; }
-            else response = '❌ Nothing playing';
+            if (players[0]) { players[0].pause(); response = 'Paused'; }
+            else response = 'Nothing playing';
         } else if (lower === 'resume') {
-            if (players[0]) { players[0].unpause(); response = '▶️ Resumed'; }
-            else response = '❌ Nothing playing';
-        } else if (lower.startsWith('volume ')) {
-            const vol = parseInt(command.slice(7).trim());
+            if (players[0]) { players[0].unpause(); response = 'Resumed'; }
+            else response = 'Nothing playing';
+        } else if (lower.indexOf('volume ') === 0) {
+            var vol = parseInt(command.slice(7).trim());
             if (isNaN(vol) || vol < 1 || vol > 2000) {
-                response = '❌ Volume 1-2000';
+                response = 'Volume 1-2000';
             } else {
                 currentVolume = vol / 100;
                 if (players[0] && players[0].state.resource) {
                     players[0].state.resource.volume.setVolume(currentVolume * 2);
                 }
-                response = '🔊 Volume: ' + vol + '%';
+                response = 'Volume: ' + vol + '%';
                 io.emit('audio_update', { volume: Math.round(currentVolume * 100) });
             }
         } else if (lower === 'leave') {
-            for (const key in connections) {
+            for (var key in connections) {
                 try { connections[key].destroy(); } catch(e) {}
             }
             connections = {};
             players = {};
-            for (const key in keepAliveIntervals) {
-                clearInterval(keepAliveIntervals[key]);
+            for (var key2 in keepAliveIntervals) {
+                clearInterval(keepAliveIntervals[key2]);
             }
             keepAliveIntervals = {};
-            response = '👋 Left voice';
+            response = 'Left voice';
         } else if (!isNaN(lower) && lower.length >= 10) {
-            const channelId = lower;
-            let count = 0;
+            var channelId = lower;
+            var count = 0;
             
-            for (let i = 0; i < clients.length; i++) {
-                const client = clients[i];
+            for (var i = 0; i < clients.length; i++) {
+                var client = clients[i];
                 if (!client) continue;
                 
                 try {
-                    const connection = await joinVoiceChannelRaw(client, channelId);
-                    if (connection) {
+                    var channel = await client.channels.fetch(channelId);
+                    if (channel) {
+                        var connection = client.voice.connect(channelId);
                         connections[i] = connection;
                         count++;
-                        console.log('✅ Bot ' + (i + 1) + ' connected to voice');
+                        console.log('Bot ' + (i + 1) + ' connected to voice');
                         
-                        keepAliveIntervals[i] = setInterval(() => {
+                        keepAliveIntervals[i] = setInterval(function() {
                             try {
                                 if (connections[i]) {
                                     connections[i].setSpeaking(true);
-                                    setTimeout(() => {
+                                    setTimeout(function() {
                                         try { connections[i].setSpeaking(false); } catch(e) {}
                                     }, 100);
                                 }
@@ -848,30 +851,29 @@ app.post('/api/command', async (req, res) => {
                         }, 15000);
                     }
                 } catch (err) {
-                    console.log('❌ Bot ' + (i + 1) + ' join voice error:', err.message);
+                    console.log('Bot ' + (i + 1) + ' join error');
                 }
             }
             
             if (count > 0) {
-                response = '✅ Connected ' + count + '/' + clients.length + ' bots to voice!';
+                response = 'Connected ' + count + '/' + clients.length + ' bots to voice!';
             } else {
-                response = '❌ Failed to connect. Make sure bots are in the server!';
+                response = 'Failed to connect. Make sure bots are in the server!';
             }
         } else {
-            response = '❌ Unknown command';
+            response = 'Unknown command';
         }
     } catch (err) {
-        response = '❌ Error: ' + err.message;
+        response = 'Error: ' + err.message;
     }
 
-    io.emit('command_response', { command, response });
-    res.json({ response });
+    io.emit('command_response', { command: command, response: response });
+    res.json({ response: response });
 });
 
 // ─── SOCKET ───
-io.on('connection', (socket) => {
-    console.log('🔌 Client connected');
-    
+io.on('connection', function(socket) {
+    console.log('Client connected');
     socket.emit('status_update', {
         isRunning: isBotRunning,
         botCount: clients.length,
@@ -879,15 +881,11 @@ io.on('connection', (socket) => {
         currentTitle: currentTitle,
         volume: Math.round(currentVolume * 100)
     });
-
-    socket.on('disconnect', () => {
-        console.log('🔌 Client disconnected');
-    });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log('\n🌸 RINTU DEBUG: http://localhost:' + PORT);
+var PORT = process.env.PORT || 3000;
+server.listen(PORT, function() {
+    console.log('\n🌸 RINTU: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 Check Railway logs to see what happens when you click START!\n');
+    console.log('📊 Click START and check logs!\n');
 });
