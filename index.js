@@ -4,6 +4,9 @@ const socketIo = require('socket.io');
 const fs = require("fs");
 const path = require("path");
 
+// Fix for voice connections
+process.env.DISCORD_VOICE_NO_BROWSER = 'true';
+
 // Patch for selfbot
 try {
     const ClientUserSettingManager = require("./node_modules/discord.js-selfbot-v13/src/managers/ClientUserSettingManager.js");
@@ -13,9 +16,10 @@ try {
 } catch (e) {}
 
 const { Client } = require("discord.js-selfbot-v13");
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } = require("@discordjs/voice");
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType, VoiceConnectionStatus } = require("@discordjs/voice");
 const { spawn } = require("child_process");
 const youtubedl = require("youtube-dl-exec");
+const ffmpeg = require('ffmpeg-static');
 
 const app = express();
 const server = http.createServer(app);
@@ -804,7 +808,9 @@ function startFFmpegStream(inputSource) {
         }
     }
 
-    currentFFmpegProcess = spawn('ffmpeg', [
+    var ffmpegPath = ffmpeg || 'ffmpeg';
+    
+    currentFFmpegProcess = spawn(ffmpegPath, [
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',
@@ -816,27 +822,39 @@ function startFFmpegStream(inputSource) {
         'pipe:1'
     ]);
 
+    currentFFmpegProcess.stdout.on('error', function(err) {
+        console.log('FFmpeg stdout error:', err.message);
+    });
+
+    currentFFmpegProcess.stderr.on('data', function(data) {
+        // Ignore ffmpeg warnings
+    });
+
     clients.forEach(function(client, index) {
         var player = players.get(index);
         if (player && currentFFmpegProcess) {
-            var resource = createAudioResource(currentFFmpegProcess.stdout, {
-                inputType: StreamType.Raw,
-                inlineVolume: true
-            });
-            var effectiveVol = currentVolumeMultiplier;
-            if (pungiMode) effectiveVol = Math.min(pungiIntensity, 200.0);
-            else if (blastMode) effectiveVol = Math.min(blastVolume, 500.0);
-            else if (superLoudMode) effectiveVol = Math.min(currentVolumeMultiplier * 20, 2000.0);
-            else if (forceLoudMode) effectiveVol = Math.min(currentVolumeMultiplier * 30, 3000.0);
-            else effectiveVol = Math.min(currentVolumeMultiplier * 2, 200.0);
-            resource.volume.setVolume(effectiveVol);
-            activeResources.set(index, resource);
-            player.play(resource);
-            io.emit('audio_update', { 
-                status: 'playing', 
-                title: currentTitle, 
-                volume: Math.round(effectiveVol * 100) 
-            });
+            try {
+                var resource = createAudioResource(currentFFmpegProcess.stdout, {
+                    inputType: StreamType.Raw,
+                    inlineVolume: true
+                });
+                var effectiveVol = currentVolumeMultiplier;
+                if (pungiMode) effectiveVol = Math.min(pungiIntensity, 200.0);
+                else if (blastMode) effectiveVol = Math.min(blastVolume, 500.0);
+                else if (superLoudMode) effectiveVol = Math.min(currentVolumeMultiplier * 20, 2000.0);
+                else if (forceLoudMode) effectiveVol = Math.min(currentVolumeMultiplier * 30, 3000.0);
+                else effectiveVol = Math.min(currentVolumeMultiplier * 2, 200.0);
+                resource.volume.setVolume(effectiveVol);
+                activeResources.set(index, resource);
+                player.play(resource);
+                io.emit('audio_update', { 
+                    status: 'playing', 
+                    title: currentTitle, 
+                    volume: Math.round(effectiveVol * 100) 
+                });
+            } catch(err) {
+                console.log('Error playing audio on bot ' + (index + 1) + ':', err.message);
+            }
         }
     });
     isPaused = false;
@@ -853,7 +871,14 @@ function startBots() {
     
     isBotRunning = true;
     dashboardTokens.forEach(function(token, index) {
-        var client = new Client({ checkUpdate: false });
+        var client = new Client({ 
+            checkUpdate: false,
+            ws: {
+                properties: {
+                    $browser: 'Discord iOS'
+                }
+            }
+        });
         client.on('ready', function() {
             console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + client.user.tag);
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: client.user.tag, status: 'online' });
@@ -870,12 +895,18 @@ function stopBots() {
     isBotRunning = false;
     stopFFmpeg();
     stopLoudMode();
-    players.forEach(function(p) { p.stop(); });
+    players.forEach(function(p) { 
+        try { p.stop(); } catch(e) {}
+    });
     players.clear();
-    connections.forEach(function(c) { try { c.destroy(); } catch(e){} });
+    connections.forEach(function(c) { 
+        try { c.destroy(); } catch(e){} 
+    });
     connections.clear();
     activeResources.clear();
-    clients.forEach(function(c) { try { c.destroy(); } catch(e){} });
+    clients.forEach(function(c) { 
+        try { c.destroy(); } catch(e){} 
+    });
     clients = [];
     currentUrl = null;
     currentChannelId = null;
@@ -917,7 +948,7 @@ app.post('/api/command', async function(req, res) {
         else if (lowerCmd.startsWith('play ')) {
             var url = command.slice(5).trim();
             if (connections.size === 0) {
-                response = '❌ Join a voice channel first!';
+                response = '❌ Join a voice channel first! Enter a channel ID';
             } else if (isYouTubeUrl(url)) {
                 try {
                     var result = await youtubedl(url, {
@@ -943,24 +974,24 @@ app.post('/api/command', async function(req, res) {
         else if (lowerCmd === 'stop') {
             stopFFmpeg();
             stopLoudMode();
-            players.forEach(function(p) { p.stop(); });
+            players.forEach(function(p) { try { p.stop(); } catch(e){} });
             activeResources.clear();
             response = '⏹️ Playback stopped';
         }
         else if (lowerCmd === 'pause') {
-            players.forEach(function(p) { p.pause(); });
+            players.forEach(function(p) { try { p.pause(); } catch(e){} });
             isPaused = true;
             response = '⏸️ Paused';
         }
         else if (lowerCmd === 'resume') {
-            players.forEach(function(p) { p.unpause(); });
+            players.forEach(function(p) { try { p.unpause(); } catch(e){} });
             isPaused = false;
             response = '▶️ Resumed';
         }
         else if (lowerCmd === 'leave') {
             stopFFmpeg();
             stopLoudMode();
-            players.forEach(function(p) { p.stop(); });
+            players.forEach(function(p) { try { p.stop(); } catch(e){} });
             players.clear();
             connections.forEach(function(c) { try { c.destroy(); } catch(e){} });
             connections.clear();
@@ -1052,35 +1083,52 @@ app.post('/api/command', async function(req, res) {
         }
         else if (!isNaN(lowerCmd) && lowerCmd.length >= 10) {
             currentChannelId = lowerCmd;
+            var connectedCount = 0;
             for (var i = 0; i < clients.length; i++) {
                 (function(index) {
                     var client = clients[index];
+                    if (!client) return;
                     client.channels.fetch(lowerCmd).then(function(channel) {
                         if (channel) {
-                            var conn = joinVoiceChannel({
-                                channelId: channel.id,
-                                guildId: channel.guild.id,
-                                adapterCreator: channel.guild.voiceAdapterCreator,
-                                selfMute: false,
-                                selfDeaf: false,
-                                group: client.user.id
-                            });
-                            var player = createAudioPlayer();
-                            conn.subscribe(player);
-                            player.on(AudioPlayerStatus.Idle, function() {
-                                if (loopMode && currentUrl && !isPaused && index === 0) {
-                                    setTimeout(function() { startFFmpegStream(currentUrl); }, 500);
-                                }
-                            });
-                            connections.set(index, conn);
-                            players.set(index, player);
+                            try {
+                                var conn = joinVoiceChannel({
+                                    channelId: channel.id,
+                                    guildId: channel.guild.id,
+                                    adapterCreator: channel.guild.voiceAdapterCreator,
+                                    selfMute: false,
+                                    selfDeaf: false
+                                });
+                                
+                                conn.on(VoiceConnectionStatus.Ready, function() {
+                                    console.log('Bot ' + (index + 1) + ' connected to voice');
+                                });
+                                
+                                conn.on(VoiceConnectionStatus.Disconnected, function() {
+                                    console.log('Bot ' + (index + 1) + ' disconnected from voice');
+                                });
+                                
+                                var player = createAudioPlayer();
+                                conn.subscribe(player);
+                                
+                                player.on(AudioPlayerStatus.Idle, function() {
+                                    if (loopMode && currentUrl && !isPaused && index === 0) {
+                                        setTimeout(function() { startFFmpegStream(currentUrl); }, 500);
+                                    }
+                                });
+                                
+                                connections.set(index, conn);
+                                players.set(index, player);
+                                connectedCount++;
+                            } catch(err) {
+                                console.log('Bot ' + (index + 1) + ' join error:', err.message);
+                            }
                         }
                     }).catch(function(err) {
-                        console.log('❌ Bot ' + (index + 1) + ' join error: ' + err.message);
+                        console.log('Bot ' + (index + 1) + ' fetch channel error:', err.message);
                     });
                 })(i);
             }
-            response = '✅ Connected ' + clients.length + ' bots to channel ' + lowerCmd;
+            response = '✅ Connecting ' + clients.length + ' bots to channel ' + lowerCmd;
         }
         else {
             response = '❌ Unknown command. Type "help" for list.';
