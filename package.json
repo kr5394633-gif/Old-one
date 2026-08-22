@@ -1,7 +1,7 @@
 {
-  "name": "rintu-selfbot-voice",
-  "version": "1.0.0",
-  "description": "Working selfbot voice - 2026 method",
+  "name": "rintu-dashboard-premium",
+  "version": "2.0.0",
+  "description": "🌸 RINTU PREMIUM - Multi-User Selfbot Controller",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,6 +12,11 @@
     "discord.js-selfbot-v13": "3.1.2",
     "@discordjs/voice": "0.11.0",
     "ytdl-core": "^4.11.5",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "node-opus": "^0.3.3",
+    "opusscript": "^0.0.8",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "cookie-parser": "^1.4.6"
   }
 }
