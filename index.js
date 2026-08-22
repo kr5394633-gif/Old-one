@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const { Client, StreamType } = require('discord.js-selfbot-v13');
+const { Client } = require('discord.js-selfbot-v13');
 const ytdl = require('ytdl-core');
 const ffmpeg = require('ffmpeg-static');
 const axios = require('axios');
@@ -24,33 +24,13 @@ var players = {};
 var currentTitle = 'Nothing playing';
 var currentVolume = 1.0;
 var keepAliveIntervals = {};
-var tokenStatus = {}; // Track which tokens are valid
+var tokenStatus = {};
+var botTags = [];
 
-console.log('🚀 RINTU ULTIMATE STARTED!');
-
-// ─── VALIDATE TOKEN BEFORE LOGIN ───
-async function validateToken(token) {
-    try {
-        var response = await axios.get('https://discord.com/api/v9/users/@me', {
-            headers: { 'Authorization': token }
-        });
-        if (response.data && response.data.id) {
-            return { valid: true, user: response.data };
-        }
-        return { valid: false, error: 'Invalid response' };
-    } catch (err) {
-        if (err.response && err.response.status === 401) {
-            return { valid: false, error: 'Token expired or invalid' };
-        }
-        if (err.response && err.response.status === 429) {
-            return { valid: false, error: 'Rate limited - try again later' };
-        }
-        return { valid: false, error: err.message };
-    }
-}
+console.log('🚀 RINTU FINAL STARTED!');
 
 // ─── START BOTS ───
-function startBots(tokens) {
+async function startBots(tokens) {
     console.log('🔥 Starting ' + tokens.length + ' bots...');
     
     if (isBotRunning) {
@@ -65,6 +45,7 @@ function startBots(tokens) {
         try { clients[i].destroy(); } catch(e) {}
     }
     clients = [];
+    botTags = [];
     
     dashboardTokens = tokens;
     isBotRunning = true;
@@ -73,7 +54,10 @@ function startBots(tokens) {
     var totalTokens = dashboardTokens.length;
     console.log('📊 Total tokens to login: ' + totalTokens);
     
+    // Login all bots with delay to avoid rate limiting
     for (var i = 0; i < dashboardTokens.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between each login
+        
         (function(index) {
             var token = dashboardTokens[index];
             console.log('🔑 Logging in bot ' + (index + 1) + '/' + totalTokens);
@@ -87,7 +71,15 @@ function startBots(tokens) {
                 var tag = client.user ? client.user.tag : 'Unknown';
                 console.log('✅ Bot ' + (index + 1) + '/' + totalTokens + ': ' + tag + ' ONLINE!');
                 tokenStatus[index] = { valid: true, tag: tag };
+                botTags[index] = tag;
                 io.emit('bot_status', { index: index + 1, total: totalTokens, tag: tag });
+                
+                // Update online count
+                var online = 0;
+                for (var key in tokenStatus) {
+                    if (tokenStatus[key] && tokenStatus[key].valid) online++;
+                }
+                io.emit('online_update', { online: online, total: totalTokens });
             });
 
             client.on('error', function(err) {
@@ -95,13 +87,7 @@ function startBots(tokens) {
                 tokenStatus[index] = { valid: false, error: err.message };
             });
 
-            // Login with timeout
-            var loginPromise = client.login(token);
-            var timeoutPromise = new Promise(function(resolve, reject) {
-                setTimeout(function() { reject(new Error('Login timeout')); }, 15000);
-            });
-            
-            Promise.race([loginPromise, timeoutPromise]).catch(function(err) {
+            client.login(token).catch(function(err) {
                 console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
                 tokenStatus[index] = { valid: false, error: err.message };
             });
@@ -110,7 +96,11 @@ function startBots(tokens) {
         })(i);
     }
     
-    io.emit('bots_started', { count: dashboardTokens.length });
+    // Wait a bit then emit started event
+    setTimeout(function() {
+        io.emit('bots_started', { count: dashboardTokens.length });
+    }, 3000);
+    
     return { success: true, count: dashboardTokens.length };
 }
 
@@ -141,6 +131,8 @@ function stopBots() {
         try { clients[i].destroy(); } catch(e) {}
     }
     clients = [];
+    botTags = [];
+    tokenStatus = {};
     
     io.emit('bots_stopped');
     return { success: true };
@@ -198,8 +190,9 @@ app.post('/api/start-bots', function(req, res) {
         return res.json({ success: false, error: 'No tokens' });
     }
     
-    var result = startBots(tokens);
-    res.json(result);
+    startBots(tokens).then(function(result) {
+        res.json(result);
+    });
 });
 
 app.post('/api/stop-bots', function(req, res) {
@@ -218,6 +211,9 @@ app.post('/api/join-server', async function(req, res) {
     var inviteCode = invite;
     if (invite.indexOf('discord.gg/') !== -1) {
         inviteCode = invite.split('discord.gg/')[1].split('/')[0].split('?')[0];
+    }
+    if (invite.indexOf('discord.com/invite/') !== -1) {
+        inviteCode = invite.split('discord.com/invite/')[1].split('/')[0].split('?')[0];
     }
 
     var results = [];
@@ -253,7 +249,8 @@ app.get('/api/status', function(req, res) {
         totalTokens: dashboardTokens.length,
         currentTitle: currentTitle,
         volume: Math.round(currentVolume * 100),
-        tokenStatus: tokenStatus
+        tokenStatus: tokenStatus,
+        botTags: botTags
     });
 });
 
@@ -279,7 +276,7 @@ app.post('/api/command', async function(req, res) {
             for (var i = 0; i < clients.length; i++) {
                 var client = clients[i];
                 if (!client) continue;
-                if (!client.user) continue; // Skip if not logged in
+                if (!tokenStatus[i] || !tokenStatus[i].valid) continue; // Skip if not logged in
                 
                 var success = await joinVoice(client, channelId);
                 if (success) {
@@ -311,7 +308,7 @@ app.post('/api/command', async function(req, res) {
                 for (var i2 = 0; i2 < clients.length; i2++) {
                     var client2 = clients[i2];
                     if (!client2) continue;
-                    if (!client2.user) continue; // Skip if not logged in
+                    if (!tokenStatus[i2] || !tokenStatus[i2].valid) continue;
                     if (!client2.voice || !client2.voice.connection) {
                         failedPlay++;
                         continue;
@@ -466,11 +463,20 @@ io.on('connection', function(socket) {
         currentTitle: currentTitle,
         volume: Math.round(currentVolume * 100)
     });
+    
+    // Send bot tags
+    if (botTags.length > 0) {
+        for (var i = 0; i < botTags.length; i++) {
+            if (botTags[i]) {
+                socket.emit('bot_status', { index: i + 1, total: botTags.length, tag: botTags[i] });
+            }
+        }
+    }
 });
 
 var PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
-    console.log('\n🌸 RINTU ULTIMATE: http://localhost:' + PORT);
+    console.log('\n🌸 RINTU FINAL: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 Waiting for tokens...\n');
+    console.log('📊 ALL BOTS WILL COME ONLINE!\n');
 });
