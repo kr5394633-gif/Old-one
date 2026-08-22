@@ -8,17 +8,12 @@ const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
+const io = socketIo(server);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── SIMPLE HTML ───
+// ─── HTML ───
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -392,7 +387,7 @@ socket.on('bot_status', (d) => addLog('🤖 Bot ' + d.index + '/' + d.total + ':
 socket.on('audio_update', (d) => { if(d.title) document.getElementById('nowPlaying').textContent = d.title; if(d.volume) document.getElementById('volDisplay').textContent = Math.round(d.volume); });
 socket.on('command_response', (d) => addLog('✦ ' + d.command + ' → ' + d.response, d.response.includes('❌') ? 'err' : 'resp'));
 
-// ─── START ───
+// ─── START VIA HTTP (FIXED) ───
 document.getElementById('startBtn').onclick = function() {
     const tokens = getTokens();
     if (tokens.length === 0) {
@@ -400,17 +395,50 @@ document.getElementById('startBtn').onclick = function() {
         addLog('❌ No tokens to start', 'err');
         return;
     }
+    
+    // Save tokens first
     localStorage.setItem('rintu_tokens', JSON.stringify(tokens));
-    socket.emit('start_bots_with_tokens', { tokens: tokens });
-    addLog('🚀 Starting ' + tokens.length + ' bots...', 'sys');
-    showToast('🚀 Starting ' + tokens.length + ' bots...', 'success');
+    addLog('💾 Saved tokens to storage', 'sys');
+    
+    // Send via HTTP POST - THIS IS THE FIX!
+    fetch('/api/start-bots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokens: tokens })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            addLog('🚀 ' + data.count + ' bots starting...', 'resp');
+            showToast('🚀 Starting ' + data.count + ' bots...', 'success');
+        } else {
+            addLog('❌ ' + data.error, 'err');
+            showToast('❌ ' + data.error, 'error');
+        }
+    })
+    .catch(e => {
+        addLog('❌ Error: ' + e.message, 'err');
+        showToast('❌ Error: ' + e.message, 'error');
+    });
 };
 
-// ─── STOP ───
+// ─── STOP VIA HTTP ───
 document.getElementById('stopBtn').onclick = function() {
-    socket.emit('stop_bots');
-    addLog('⛔ Stopping...', 'sys');
-    showToast('⛔ Stopping bots...', 'success');
+    fetch('/api/stop-bots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            addLog('⛔ Bots stopped', 'sys');
+            showToast('⛔ Bots stopped', 'success');
+        }
+    })
+    .catch(e => {
+        addLog('❌ Error: ' + e.message, 'err');
+        showToast('❌ Error: ' + e.message, 'error');
+    });
 };
 
 // ─── JOIN SERVER ───
@@ -511,13 +539,18 @@ let currentTitle = 'Nothing playing';
 let currentVolume = 1.0;
 let keepAliveIntervals = {};
 
-function startBots() {
-    if (isBotRunning) return;
-    if (!dashboardTokens.length) {
-        console.log('❌ No tokens');
-        return;
+function startBots(tokens) {
+    if (isBotRunning) {
+        console.log('⚠️ Bots already running');
+        return { success: false, error: 'Bots already running' };
+    }
+    
+    if (!tokens || tokens.length === 0) {
+        console.log('❌ No tokens provided');
+        return { success: false, error: 'No tokens provided' };
     }
 
+    dashboardTokens = tokens;
     console.log('🚀 Starting ' + dashboardTokens.length + ' bots...');
     isBotRunning = true;
     
@@ -544,9 +577,15 @@ function startBots() {
     });
     
     io.emit('bots_started', { count: dashboardTokens.length });
+    return { success: true, count: dashboardTokens.length };
 }
 
 function stopBots() {
+    if (!isBotRunning) {
+        console.log('⚠️ Bots not running');
+        return { success: false, error: 'Bots not running' };
+    }
+    
     console.log('⛔ Stopping all bots...');
     isBotRunning = false;
     
@@ -572,9 +611,28 @@ function stopBots() {
     
     io.emit('bots_stopped');
     console.log('✅ All bots stopped');
+    return { success: true };
 }
 
-// ─── JOIN SERVER ───
+// ─── API ROUTES ───
+
+// START BOTS VIA HTTP
+app.post('/api/start-bots', (req, res) => {
+    const { tokens } = req.body;
+    if (!tokens || tokens.length === 0) {
+        return res.json({ success: false, error: 'No tokens provided' });
+    }
+    const result = startBots(tokens);
+    res.json(result);
+});
+
+// STOP BOTS VIA HTTP
+app.post('/api/stop-bots', (req, res) => {
+    const result = stopBots();
+    res.json(result);
+});
+
+// JOIN SERVER
 app.post('/api/join-server', async (req, res) => {
     const { invite } = req.body;
     if (!invite) return res.json({ error: 'No invite provided' });
@@ -643,7 +701,7 @@ async function joinVoiceChannelRaw(client, channelId) {
     }
 }
 
-// ─── API ───
+// ─── STATUS ───
 app.get('/api/status', (req, res) => {
     res.json({
         isRunning: isBotRunning,
@@ -654,6 +712,7 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// ─── COMMAND ───
 app.post('/api/command', async (req, res) => {
     const command = req.body.command;
     if (!command) return res.json({ error: 'No command' });
@@ -790,18 +849,6 @@ io.on('connection', (socket) => {
         volume: Math.round(currentVolume * 100)
     });
 
-    socket.on('start_bots_with_tokens', (data) => {
-        const newTokens = data.tokens;
-        if (newTokens && newTokens.length > 0) {
-            dashboardTokens = newTokens.filter(t => t && t.length > 10);
-            console.log('📊 Received ' + dashboardTokens.length + ' tokens');
-            startBots();
-        }
-    });
-
-    socket.on('start_bots', startBots);
-    socket.on('stop_bots', stopBots);
-    
     socket.on('disconnect', () => {
         console.log('🔌 Client disconnected');
     });
