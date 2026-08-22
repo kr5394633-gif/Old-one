@@ -1,7 +1,7 @@
 {
-  "name": "rintu-simple",
+  "name": "rintu-working",
   "version": "1.0.0",
-  "description": "🌸 RINTU SIMPLE - Everything Works",
+  "description": "🌸 RINTU WORKING",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,7 +12,6 @@
     "discord.js-selfbot-v13": "3.1.2",
     "ytdl-core": "^4.11.5",
     "ffmpeg-static": "^5.2.0",
-    "jsonwebtoken": "^9.0.2",
     "axios": "^1.4.0"
   }
 }
