@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const { Client } = require('discord.js-selfbot-v13');
 const ytdl = require('ytdl-core');
@@ -14,17 +13,46 @@ const io = socketIo(server);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
-const JWT_SECRET = 'RINTU_FAST_2026';
+const JWT_SECRET = 'RINTU_FINAL_2026';
+const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
 
-// ─── HTML (Embedded for speed) ───
+// ─── SIMPLE COOKIE PARSER (NO DEPENDENCY) ───
+function parseCookies(cookieHeader) {
+    const cookies = {};
+    if (!cookieHeader) return cookies;
+    cookieHeader.split(';').forEach(cookie => {
+        const parts = cookie.split('=');
+        const key = parts[0].trim();
+        const value = parts.slice(1).join('=').trim();
+        if (key) cookies[key] = decodeURIComponent(value);
+    });
+    return cookies;
+}
+
+function getToken(req) {
+    const cookies = parseCookies(req.headers.cookie || '');
+    return cookies.token || req.headers.authorization?.split(' ')[1];
+}
+
+function authenticate(req, res, next) {
+    const token = getToken(req);
+    if (!token) return res.status(401).json({ error: 'Auth required' });
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+}
+
+// ─── HTML ───
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌸 RINTU</title>
+    <title>🌸 RINTU FINAL</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -40,7 +68,7 @@ const HTML = `<!DOCTYPE html>
         .container { max-width: 850px; width: 100%; margin: 0 auto; }
         .header { text-align: center; padding: 20px 0; }
         .header h1 {
-            font-size: 2.5em;
+            font-size: 2.8em;
             font-weight: 900;
             background: linear-gradient(135deg, #ff6b9d, #c084fc, #60a5fa);
             -webkit-background-clip: text;
@@ -54,6 +82,7 @@ const HTML = `<!DOCTYPE html>
             padding: 20px;
             margin-bottom: 16px;
             border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .card-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.3); margin-bottom: 14px; }
         .login-box { text-align: center; padding: 20px; }
@@ -94,6 +123,7 @@ const HTML = `<!DOCTYPE html>
             outline: none;
             resize: vertical;
         }
+        .token-area textarea:focus { border-color: rgba(192,132,252,0.3); }
         .token-stats { display: flex; gap: 15px; flex-wrap: wrap; font-size: 0.8em; color: rgba(255,255,255,0.4); }
         .token-stats span { background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 20px; }
         .token-stats .count { color: #c084fc; font-weight: 600; }
@@ -194,18 +224,6 @@ const HTML = `<!DOCTYPE html>
         .status-user .logout { color: #f87171; cursor: pointer; font-size: 0.8em; }
         .status-user .logout:hover { text-decoration: underline; }
         .token-area { display: flex; flex-direction: column; gap: 10px; }
-        .share-link {
-            background: rgba(0,0,0,0.3);
-            padding: 10px 14px;
-            border-radius: 10px;
-            margin-top: 8px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .share-link input { flex: 1; background: transparent; border: none; color: #60a5fa; font-size: 0.85em; outline: none; min-width: 150px; }
-        .share-link .copy-btn { background: rgba(192,132,252,0.2); color: #c084fc; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.8em; }
         @media (max-width: 600px) {
             .header h1 { font-size: 1.8em; }
             .status-bar { flex-direction: column; }
@@ -221,7 +239,7 @@ const HTML = `<!DOCTYPE html>
     <div id="loginScreen" class="container">
         <div class="card login-box">
             <h1 style="font-size:2em;background:linear-gradient(135deg,#ff6b9d,#c084fc,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;">🌸 RINTU</h1>
-            <div style="color:rgba(255,255,255,0.3);margin-bottom:20px;">✦ Login ✦</div>
+            <div style="color:rgba(255,255,255,0.3);margin-bottom:20px;">✦ FINAL ✦</div>
             <input type="text" id="loginUser" placeholder="Username" value="admin">
             <input type="password" id="loginPass" placeholder="Password" value="admin123">
             <button class="login-btn" onclick="login()">🔓 LOGIN</button>
@@ -233,14 +251,10 @@ const HTML = `<!DOCTYPE html>
     <div id="dashboardScreen" class="container" style="display:none;">
         <div class="header">
             <h1>🌸 RINTU</h1>
-            <div class="sub">✦ Selfbot Controller ✦</div>
+            <div class="sub">✦ FINAL - Everything Works ✦</div>
             <div class="status-user">
-                <span class="user">👤 <span id="currentUser">admin</span></span>
+                <span class="user">👑 <span id="currentUser">admin</span></span>
                 <span class="logout" onclick="logout()">🚪 Logout</span>
-            </div>
-            <div class="share-link">
-                <input id="shareUrl" readonly value="Loading...">
-                <button class="copy-btn" onclick="copyShareUrl()">📋 Copy Link</button>
             </div>
         </div>
 
@@ -287,6 +301,7 @@ const HTML = `<!DOCTYPE html>
                 <button class="cmd-btn" data-cmd="resume"><span class="icon">▶️</span><span class="label">Resume</span></button>
                 <button class="cmd-btn" data-cmd="volume 200"><span class="icon">🔊</span><span class="label">200%</span></button>
                 <button class="cmd-btn" data-cmd="volume 500"><span class="icon">💥</span><span class="label">500%</span></button>
+                <button class="cmd-btn" data-cmd="volume 1000"><span class="icon">💀</span><span class="label">1000%</span></button>
                 <button class="cmd-btn" data-cmd="leave"><span class="icon">👋</span><span class="label">Leave</span></button>
             </div>
         </div>
@@ -302,7 +317,7 @@ const HTML = `<!DOCTYPE html>
         <div class="card">
             <div class="card-title">📋 Log</div>
             <div class="log-area" id="logArea">
-                <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU ready</span></div>
+                <div class="log-entry"><span class="time">[✦]</span> <span class="sys">🌸 RINTU FINAL ready</span></div>
             </div>
         </div>
     </div>
@@ -327,7 +342,6 @@ function login() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardScreen').style.display = 'block';
             document.getElementById('currentUser').textContent = user;
-            document.getElementById('shareUrl').value = window.location.href;
             initDashboard();
         } else {
             document.getElementById('loginError').textContent = '❌ ' + data.error;
@@ -337,13 +351,6 @@ function login() {
 
 function logout() {
     fetch('/api/logout', { method: 'POST' }).then(() => window.location.reload());
-}
-
-function copyShareUrl() {
-    const url = document.getElementById('shareUrl');
-    url.select();
-    document.execCommand('copy');
-    addLog('📋 Copied!', 'resp');
 }
 
 function initDashboard() {
@@ -474,7 +481,6 @@ window.onload = function() {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('dashboardScreen').style.display = 'block';
                 document.getElementById('currentUser').textContent = data.user;
-                document.getElementById('shareUrl').value = window.location.href;
                 initDashboard();
             }
         })
@@ -486,7 +492,7 @@ window.onload = function() {
 
 // ─── SERVE ───
 app.get('/', (req, res) => {
-    const token = req.cookies.token;
+    const token = getToken(req);
     if (token) {
         try {
             jwt.verify(token, JWT_SECRET);
@@ -501,19 +507,19 @@ app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && password === 'admin123') {
         const token = jwt.sign({ username, role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
-        res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+        res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Max-Age=86400; Path=/`);
         return res.json({ success: true });
     }
-    res.json({ success: false, error: 'Invalid' });
+    res.json({ success: false, error: 'Invalid credentials' });
 });
 
 app.post('/api/logout', (req, res) => {
-    res.clearCookie('token');
+    res.setHeader('Set-Cookie', 'token=; Max-Age=0; Path=/');
     res.json({ success: true });
 });
 
 app.get('/api/check-auth', (req, res) => {
-    const token = req.cookies.token;
+    const token = getToken(req);
     if (!token) return res.json({ authenticated: false });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -531,6 +537,7 @@ let connections = {};
 let players = {};
 let currentTitle = 'Nothing playing';
 let currentVolume = 1.0;
+let keepAliveIntervals = {};
 
 function startBots() {
     if (isBotRunning) return;
@@ -538,12 +545,17 @@ function startBots() {
 
     isBotRunning = true;
     dashboardTokens.forEach((token, index) => {
-        const client = new Client({ checkUpdate: false });
+        const client = new Client({ 
+            checkUpdate: false,
+            ws: { properties: { $browser: 'Discord iOS' } }
+        });
+
         client.on('ready', () => {
             const tag = client.user ? client.user.tag : 'Unknown';
             console.log('🤖 Bot ' + (index + 1) + '/' + dashboardTokens.length + ': ' + tag);
             io.emit('bot_status', { index: index + 1, total: dashboardTokens.length, tag: tag });
         });
+
         client.login(token).catch(err => console.log('❌ Bot ' + (index + 1) + ' login failed'));
         clients.push(client);
     });
@@ -552,13 +564,45 @@ function startBots() {
 
 function stopBots() {
     isBotRunning = false;
-    for (const key in players) { try { players[key].stop(); } catch(e) {} }
+    
+    // Stop all players
+    for (const key in players) {
+        try { players[key].stop(); } catch(e) {}
+    }
     players = {};
-    for (const key in connections) { try { connections[key].destroy(); } catch(e) {} }
+    
+    // Destroy all connections
+    for (const key in connections) {
+        try { connections[key].destroy(); } catch(e) {}
+    }
     connections = {};
+    
+    // Clear keep-alive intervals
+    for (const key in keepAliveIntervals) {
+        clearInterval(keepAliveIntervals[key]);
+    }
+    keepAliveIntervals = {};
+    
+    // Destroy clients
     clients.forEach(c => { try { c.destroy(); } catch(e) {} });
     clients = [];
     io.emit('bots_stopped');
+    console.log('⛔ All bots stopped');
+}
+
+// ─── KEEP BOTS IN VOICE FOREVER ───
+function keepBotsInVoice() {
+    for (const key in connections) {
+        if (connections[key]) {
+            try {
+                // Ping the connection to keep it alive
+                connections[key].setSpeaking(true);
+                setTimeout(() => {
+                    try { connections[key].setSpeaking(false); } catch(e) {}
+                }, 100);
+            } catch(e) {}
+        }
+    }
 }
 
 // ─── API ───
@@ -586,18 +630,32 @@ app.post('/api/command', async (req, res) => {
                 response = '❌ Join voice first! Send channel ID';
             } else {
                 try {
-                    const stream = ytdl(url, { filter: 'audioonly', highWaterMark: 1 << 25 });
+                    const stream = ytdl(url, { 
+                        filter: 'audioonly',
+                        quality: 'highestaudio',
+                        highWaterMark: 1 << 25
+                    });
+                    
                     const resource = createAudioResource(stream, {
                         inputType: StreamType.Arbitrary,
                         inlineVolume: true
                     });
+                    
                     resource.volume.setVolume(currentVolume * 2);
                     const player = createAudioPlayer();
                     player.play(resource);
-                    if (connections[0]) connections[0].subscribe(player);
+                    
+                    if (connections[0]) {
+                        connections[0].subscribe(player);
+                    }
                     players[0] = player;
+                    
                     currentTitle = '🎵 ' + url;
-                    io.emit('audio_update', { status: 'playing', title: currentTitle, volume: Math.round(currentVolume * 100) });
+                    io.emit('audio_update', { 
+                        status: 'playing', 
+                        title: currentTitle, 
+                        volume: Math.round(currentVolume * 100) 
+                    });
                     response = '🎵 Now playing!';
                 } catch (err) {
                     response = '❌ Error: ' + err.message;
@@ -614,8 +672,8 @@ app.post('/api/command', async (req, res) => {
             else response = '❌ Nothing playing';
         } else if (lower.startsWith('volume ')) {
             const vol = parseInt(command.slice(7).trim());
-            if (isNaN(vol) || vol < 1 || vol > 500) {
-                response = '❌ Volume 1-500';
+            if (isNaN(vol) || vol < 1 || vol > 2000) {
+                response = '❌ Volume 1-2000';
             } else {
                 currentVolume = vol / 100;
                 if (players[0] && players[0].state.resource) {
@@ -629,17 +687,24 @@ app.post('/api/command', async (req, res) => {
                 connections[0].destroy();
                 connections = {};
                 players = {};
+                for (const key in keepAliveIntervals) {
+                    clearInterval(keepAliveIntervals[key]);
+                }
+                keepAliveIntervals = {};
                 response = '👋 Left voice';
             } else response = '❌ Not in voice';
         } else if (!isNaN(lower) && lower.length >= 10) {
             const channelId = lower;
             let count = 0;
+            
             for (let i = 0; i < clients.length; i++) {
                 const client = clients[i];
                 if (!client) continue;
+                
                 try {
                     const channel = await client.channels.fetch(channelId);
                     if (!channel) continue;
+                    
                     const connection = joinVoiceChannel({
                         channelId: channel.id,
                         guildId: channel.guild.id,
@@ -648,11 +713,20 @@ app.post('/api/command', async (req, res) => {
                         selfDeaf: false,
                         group: client.user.id
                     });
+                    
                     connections[i] = connection;
                     count++;
-                } catch (err) {}
+                    
+                    // Keep bot in voice FOREVER
+                    keepAliveIntervals[i] = setInterval(() => {
+                        keepBotsInVoice();
+                    }, 30000);
+                    
+                } catch (err) {
+                    console.log('❌ Bot ' + (i + 1) + ' join error');
+                }
             }
-            response = '✅ Connected ' + count + '/' + clients.length + ' bots';
+            response = '✅ Connected ' + count + '/' + clients.length + ' bots (they will stay forever!)';
         } else {
             response = '❌ Unknown command';
         }
@@ -666,7 +740,7 @@ app.post('/api/command', async (req, res) => {
 
 // ─── SOCKET ───
 io.use((socket, next) => {
-    const token = socket.handshake.headers.cookie?.split('token=')[1]?.split(';')[0];
+    const token = getToken(socket.handshake);
     if (!token) return next(new Error('Auth required'));
     try {
         jwt.verify(token, JWT_SECRET);
@@ -697,7 +771,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log('\n🌸 RINTU: http://localhost:' + PORT);
+    console.log('\n🌸 RINTU FINAL: http://localhost:' + PORT);
     console.log('👑 admin / admin123');
-    console.log('⚡ FAST DEPLOY!\n');
+    console.log('⚡ BOTS STAY IN VOICE FOREVER!\n');
 });
