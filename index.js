@@ -24,13 +24,34 @@ var players = {};
 var currentTitle = 'Nothing playing';
 var currentVolume = 1.0;
 var keepAliveIntervals = {};
+var tokenStatus = {}; // Track which tokens are valid
 
 console.log('🚀 RINTU ULTIMATE STARTED!');
+
+// ─── VALIDATE TOKEN BEFORE LOGIN ───
+async function validateToken(token) {
+    try {
+        var response = await axios.get('https://discord.com/api/v9/users/@me', {
+            headers: { 'Authorization': token }
+        });
+        if (response.data && response.data.id) {
+            return { valid: true, user: response.data };
+        }
+        return { valid: false, error: 'Invalid response' };
+    } catch (err) {
+        if (err.response && err.response.status === 401) {
+            return { valid: false, error: 'Token expired or invalid' };
+        }
+        if (err.response && err.response.status === 429) {
+            return { valid: false, error: 'Rate limited - try again later' };
+        }
+        return { valid: false, error: err.message };
+    }
+}
 
 // ─── START BOTS ───
 function startBots(tokens) {
     console.log('🔥 Starting ' + tokens.length + ' bots...');
-    console.log('📊 Tokens received:', tokens);
     
     if (isBotRunning) {
         return { success: false, error: 'Bots already running' };
@@ -47,6 +68,7 @@ function startBots(tokens) {
     
     dashboardTokens = tokens;
     isBotRunning = true;
+    tokenStatus = {};
     
     var totalTokens = dashboardTokens.length;
     console.log('📊 Total tokens to login: ' + totalTokens);
@@ -64,16 +86,26 @@ function startBots(tokens) {
             client.on('ready', function() {
                 var tag = client.user ? client.user.tag : 'Unknown';
                 console.log('✅ Bot ' + (index + 1) + '/' + totalTokens + ': ' + tag + ' ONLINE!');
+                tokenStatus[index] = { valid: true, tag: tag };
                 io.emit('bot_status', { index: index + 1, total: totalTokens, tag: tag });
             });
 
             client.on('error', function(err) {
                 console.log('❌ Bot ' + (index + 1) + ' error:', err.message);
+                tokenStatus[index] = { valid: false, error: err.message };
             });
 
-            client.login(token).catch(function(err) {
-                console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
+            // Login with timeout
+            var loginPromise = client.login(token);
+            var timeoutPromise = new Promise(function(resolve, reject) {
+                setTimeout(function() { reject(new Error('Login timeout')); }, 15000);
             });
+            
+            Promise.race([loginPromise, timeoutPromise]).catch(function(err) {
+                console.log('❌ Bot ' + (index + 1) + ' login failed:', err.message);
+                tokenStatus[index] = { valid: false, error: err.message };
+            });
+            
             clients.push(client);
         })(i);
     }
@@ -125,7 +157,7 @@ async function joinVoice(client, channelId) {
             return false;
         }
         
-        if (client.voice.connection) {
+        if (client.voice && client.voice.connection) {
             console.log('⚠️ Already in voice, reconnecting...');
             try { client.voice.disconnect(); } catch(e) {}
             await sleep(1000);
@@ -161,17 +193,12 @@ function sleep(ms) {
 
 app.post('/api/start-bots', function(req, res) {
     console.log('📨 POST /api/start-bots');
-    console.log('📦 Request body:', req.body);
-    
     var tokens = req.body.tokens;
     if (!tokens || tokens.length === 0) {
-        console.log('❌ No tokens in request');
         return res.json({ success: false, error: 'No tokens' });
     }
     
-    console.log('📊 Received ' + tokens.length + ' tokens');
     var result = startBots(tokens);
-    console.log('📤 Response:', result);
     res.json(result);
 });
 
@@ -214,12 +241,19 @@ app.post('/api/join-server', async function(req, res) {
 });
 
 app.get('/api/status', function(req, res) {
+    var online = 0;
+    for (var key in tokenStatus) {
+        if (tokenStatus[key] && tokenStatus[key].valid) online++;
+    }
+    
     res.json({
         isRunning: isBotRunning,
         botCount: clients.length,
+        onlineCount: online,
         totalTokens: dashboardTokens.length,
         currentTitle: currentTitle,
-        volume: Math.round(currentVolume * 100)
+        volume: Math.round(currentVolume * 100),
+        tokenStatus: tokenStatus
     });
 });
 
@@ -245,6 +279,7 @@ app.post('/api/command', async function(req, res) {
             for (var i = 0; i < clients.length; i++) {
                 var client = clients[i];
                 if (!client) continue;
+                if (!client.user) continue; // Skip if not logged in
                 
                 var success = await joinVoice(client, channelId);
                 if (success) {
@@ -276,7 +311,8 @@ app.post('/api/command', async function(req, res) {
                 for (var i2 = 0; i2 < clients.length; i2++) {
                     var client2 = clients[i2];
                     if (!client2) continue;
-                    if (!client2.voice.connection) {
+                    if (!client2.user) continue; // Skip if not logged in
+                    if (!client2.voice || !client2.voice.connection) {
                         failedPlay++;
                         continue;
                     }
@@ -380,7 +416,7 @@ app.post('/api/command', async function(req, res) {
             for (var i3 = 0; i3 < clients.length; i3++) {
                 var client3 = clients[i3];
                 if (!client3) continue;
-                if (client3.voice.connection) {
+                if (client3.voice && client3.voice.connection) {
                     try {
                         client3.voice.disconnect();
                         left++;
@@ -416,9 +452,16 @@ app.post('/api/command', async function(req, res) {
 // ─── SOCKET ───
 io.on('connection', function(socket) {
     console.log('📱 Client connected');
+    
+    var online = 0;
+    for (var key in tokenStatus) {
+        if (tokenStatus[key] && tokenStatus[key].valid) online++;
+    }
+    
     socket.emit('status_update', {
         isRunning: isBotRunning,
         botCount: clients.length,
+        onlineCount: online,
         totalTokens: dashboardTokens.length,
         currentTitle: currentTitle,
         volume: Math.round(currentVolume * 100)
