@@ -16,16 +16,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─── BOT STATE ───
-var dashboardTokens = [];
-var isBotRunning = false;
-var clients = [];
-var voiceConnections = {};
-var players = {};
-var currentTitle = 'Nothing playing';
-var currentVolume = 1.0;
-var keepAliveIntervals = {};
-var tokenStatus = {};
-var botTags = [];
+let dashboardTokens = [];
+let isBotRunning = false;
+let clients = [];
+let voiceConnections = {};
+let players = {};
+let currentTitle = 'Nothing playing';
+let currentVolume = 1.0;
+let keepAliveIntervals = {};
+let tokenStatus = {};
+let botTags = [];
 
 console.log('🚀 RINTU FINAL STARTED!');
 
@@ -40,8 +40,8 @@ async function startBots(tokens) {
         return { success: false, error: 'No tokens' };
     }
 
-    // CLEAR old clients first
-    for (var i = 0; i < clients.length; i++) {
+    // CLEAR old clients
+    for (let i = 0; i < clients.length; i++) {
         try { clients[i].destroy(); } catch(e) {}
     }
     clients = [];
@@ -51,32 +51,31 @@ async function startBots(tokens) {
     isBotRunning = true;
     tokenStatus = {};
     
-    var totalTokens = dashboardTokens.length;
+    const totalTokens = dashboardTokens.length;
     console.log('📊 Total tokens to login: ' + totalTokens);
     
-    // Login all bots with delay to avoid rate limiting
-    for (var i = 0; i < dashboardTokens.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between each login
+    // Login all bots with delay
+    for (let i = 0; i < dashboardTokens.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         (function(index) {
-            var token = dashboardTokens[index];
+            const token = dashboardTokens[index];
             console.log('🔑 Logging in bot ' + (index + 1) + '/' + totalTokens);
             
-            var client = new Client({ 
+            const client = new Client({ 
                 checkUpdate: false,
                 ws: { properties: { $browser: 'Discord iOS' } }
             });
 
             client.on('ready', function() {
-                var tag = client.user ? client.user.tag : 'Unknown';
+                const tag = client.user ? client.user.tag : 'Unknown';
                 console.log('✅ Bot ' + (index + 1) + '/' + totalTokens + ': ' + tag + ' ONLINE!');
                 tokenStatus[index] = { valid: true, tag: tag };
                 botTags[index] = tag;
                 io.emit('bot_status', { index: index + 1, total: totalTokens, tag: tag });
                 
-                // Update online count
-                var online = 0;
-                for (var key in tokenStatus) {
+                let online = 0;
+                for (const key in tokenStatus) {
                     if (tokenStatus[key] && tokenStatus[key].valid) online++;
                 }
                 io.emit('online_update', { online: online, total: totalTokens });
@@ -96,7 +95,6 @@ async function startBots(tokens) {
         })(i);
     }
     
-    // Wait a bit then emit started event
     setTimeout(function() {
         io.emit('bots_started', { count: dashboardTokens.length });
     }, 3000);
@@ -112,22 +110,22 @@ function stopBots() {
     
     isBotRunning = false;
     
-    for (var key in players) {
+    for (const key in players) {
         try { players[key].stop(); } catch(e) {}
     }
     players = {};
     
-    for (var key2 in voiceConnections) {
+    for (const key2 in voiceConnections) {
         try { voiceConnections[key2].disconnect(); } catch(e) {}
     }
     voiceConnections = {};
     
-    for (var key3 in keepAliveIntervals) {
+    for (const key3 in keepAliveIntervals) {
         clearInterval(keepAliveIntervals[key3]);
     }
     keepAliveIntervals = {};
     
-    for (var i = 0; i < clients.length; i++) {
+    for (let i = 0; i < clients.length; i++) {
         try { clients[i].destroy(); } catch(e) {}
     }
     clients = [];
@@ -143,7 +141,7 @@ async function joinVoice(client, channelId) {
     try {
         console.log('🔄 Joining voice channel: ' + channelId);
         
-        var channel = await client.channels.fetch(channelId);
+        const channel = await client.channels.fetch(channelId);
         if (!channel) {
             console.log('❌ Channel not found');
             return false;
@@ -155,10 +153,10 @@ async function joinVoice(client, channelId) {
             await sleep(1000);
         }
         
-        var connection = client.voice.connect(channelId);
+        const connection = client.voice.connect(channelId);
         console.log('✅ Connected to voice!');
         
-        var intervalId = setInterval(function() {
+        const intervalId = setInterval(function() {
             try {
                 if (client.voice && client.voice.connection) {
                     client.voice.connection.setSpeaking(true);
@@ -185,11 +183,10 @@ function sleep(ms) {
 
 app.post('/api/start-bots', function(req, res) {
     console.log('📨 POST /api/start-bots');
-    var tokens = req.body.tokens;
+    const tokens = req.body.tokens;
     if (!tokens || tokens.length === 0) {
         return res.json({ success: false, error: 'No tokens' });
     }
-    
     startBots(tokens).then(function(result) {
         res.json(result);
     });
@@ -197,18 +194,18 @@ app.post('/api/start-bots', function(req, res) {
 
 app.post('/api/stop-bots', function(req, res) {
     console.log('📨 POST /api/stop-bots');
-    var result = stopBots();
+    const result = stopBots();
     res.json(result);
 });
 
 app.post('/api/join-server', async function(req, res) {
-    var invite = req.body.invite;
+    const invite = req.body.invite;
     if (!invite) return res.json({ error: 'No invite' });
     if (clients.length === 0) {
         return res.json({ error: 'Start bots first!' });
     }
 
-    var inviteCode = invite;
+    let inviteCode = invite;
     if (invite.indexOf('discord.gg/') !== -1) {
         inviteCode = invite.split('discord.gg/')[1].split('/')[0].split('?')[0];
     }
@@ -216,12 +213,12 @@ app.post('/api/join-server', async function(req, res) {
         inviteCode = invite.split('discord.com/invite/')[1].split('/')[0].split('?')[0];
     }
 
-    var results = [];
-    for (var i = 0; i < clients.length; i++) {
-        var client = clients[i];
+    const results = [];
+    for (let i = 0; i < clients.length; i++) {
+        const client = clients[i];
         if (!client) continue;
         try {
-            var inviteObj = await client.fetchInvite(inviteCode);
+            const inviteObj = await client.fetchInvite(inviteCode);
             if (inviteObj) {
                 await client.acceptInvite(inviteCode);
                 results.push('✅ Bot ' + (i + 1) + ' joined: ' + (inviteObj.guild?.name || 'Server'));
@@ -231,14 +228,14 @@ app.post('/api/join-server', async function(req, res) {
         }
     }
 
-    var message = results.join('\n');
+    const message = results.join('\n');
     io.emit('command_response', { command: 'Join Server', response: message });
     res.json({ message: message });
 });
 
 app.get('/api/status', function(req, res) {
-    var online = 0;
-    for (var key in tokenStatus) {
+    let online = 0;
+    for (const key in tokenStatus) {
         if (tokenStatus[key] && tokenStatus[key].valid) online++;
     }
     
@@ -255,30 +252,30 @@ app.get('/api/status', function(req, res) {
 });
 
 app.post('/api/command', async function(req, res) {
-    var command = req.body.command;
+    const command = req.body.command;
     if (!command) return res.json({ error: 'No command' });
 
-    var lower = command.toLowerCase().trim();
-    var response = '';
-    var parts = lower.split(' ');
-    var cmd = parts[0];
-    var args = parts.slice(1).join(' ');
+    const lower = command.toLowerCase().trim();
+    let response = '';
+    const parts = lower.split(' ');
+    const cmd = parts[0];
+    const args = parts.slice(1).join(' ');
 
     console.log('📨 Command:', cmd);
 
     try {
         // ─── JOIN VOICE (CHANNEL ID) ───
         if (!isNaN(cmd) && cmd.length >= 10) {
-            var channelId = cmd;
-            var joined = 0;
-            var failed = 0;
+            const channelId = cmd;
+            let joined = 0;
+            let failed = 0;
             
-            for (var i = 0; i < clients.length; i++) {
-                var client = clients[i];
+            for (let i = 0; i < clients.length; i++) {
+                const client = clients[i];
                 if (!client) continue;
-                if (!tokenStatus[i] || !tokenStatus[i].valid) continue; // Skip if not logged in
+                if (!tokenStatus[i] || !tokenStatus[i].valid) continue;
                 
-                var success = await joinVoice(client, channelId);
+                const success = await joinVoice(client, channelId);
                 if (success) {
                     voiceConnections[i] = client.voice.connection;
                     joined++;
@@ -302,11 +299,11 @@ app.post('/api/command', async function(req, res) {
             if (clients.length === 0) {
                 response = '❌ Start bots first!';
             } else {
-                var played = 0;
-                var failedPlay = 0;
+                let played = 0;
+                let failedPlay = 0;
                 
-                for (var i2 = 0; i2 < clients.length; i2++) {
-                    var client2 = clients[i2];
+                for (let i2 = 0; i2 < clients.length; i2++) {
+                    const client2 = clients[i2];
                     if (!client2) continue;
                     if (!tokenStatus[i2] || !tokenStatus[i2].valid) continue;
                     if (!client2.voice || !client2.voice.connection) {
@@ -315,13 +312,13 @@ app.post('/api/command', async function(req, res) {
                     }
                     
                     try {
-                        var stream = ytdl(args, {
+                        const stream = ytdl(args, {
                             filter: 'audioonly',
                             quality: 'highestaudio',
                             highWaterMark: 1 << 25
                         });
                         
-                        var dispatcher = client2.voice.connection.play(stream, {
+                        const dispatcher = client2.voice.connection.play(stream, {
                             type: 'opus',
                             volume: currentVolume
                         });
@@ -354,8 +351,8 @@ app.post('/api/command', async function(req, res) {
         
         // ─── STOP ───
         else if (cmd === 'stop') {
-            var stopped = 0;
-            for (var key in players) {
+            let stopped = 0;
+            for (const key in players) {
                 try {
                     players[key].stop();
                     stopped++;
@@ -368,8 +365,8 @@ app.post('/api/command', async function(req, res) {
         
         // ─── PAUSE ───
         else if (cmd === 'pause') {
-            var paused = 0;
-            for (var key in players) {
+            let paused = 0;
+            for (const key in players) {
                 try {
                     players[key].pause();
                     paused++;
@@ -380,8 +377,8 @@ app.post('/api/command', async function(req, res) {
         
         // ─── RESUME ───
         else if (cmd === 'resume') {
-            var resumed = 0;
-            for (var key in players) {
+            let resumed = 0;
+            for (const key in players) {
                 try {
                     players[key].resume();
                     resumed++;
@@ -392,12 +389,12 @@ app.post('/api/command', async function(req, res) {
         
         // ─── VOLUME ───
         else if (cmd === 'volume' && args) {
-            var vol = parseInt(args);
+            const vol = parseInt(args);
             if (isNaN(vol) || vol < 1 || vol > 2000) {
                 response = '❌ Volume must be 1-2000';
             } else {
                 currentVolume = vol / 100;
-                for (var key in players) {
+                for (const key in players) {
                     try {
                         players[key].setVolume(currentVolume);
                     } catch(e) {}
@@ -409,9 +406,9 @@ app.post('/api/command', async function(req, res) {
         
         // ─── LEAVE ───
         else if (cmd === 'leave') {
-            var left = 0;
-            for (var i3 = 0; i3 < clients.length; i3++) {
-                var client3 = clients[i3];
+            let left = 0;
+            for (let i3 = 0; i3 < clients.length; i3++) {
+                const client3 = clients[i3];
                 if (!client3) continue;
                 if (client3.voice && client3.voice.connection) {
                     try {
@@ -422,7 +419,7 @@ app.post('/api/command', async function(req, res) {
             }
             voiceConnections = {};
             players = {};
-            for (var key in keepAliveIntervals) {
+            for (const key in keepAliveIntervals) {
                 clearInterval(keepAliveIntervals[key]);
             }
             keepAliveIntervals = {};
@@ -450,8 +447,8 @@ app.post('/api/command', async function(req, res) {
 io.on('connection', function(socket) {
     console.log('📱 Client connected');
     
-    var online = 0;
-    for (var key in tokenStatus) {
+    let online = 0;
+    for (const key in tokenStatus) {
         if (tokenStatus[key] && tokenStatus[key].valid) online++;
     }
     
@@ -464,9 +461,8 @@ io.on('connection', function(socket) {
         volume: Math.round(currentVolume * 100)
     });
     
-    // Send bot tags
     if (botTags.length > 0) {
-        for (var i = 0; i < botTags.length; i++) {
+        for (let i = 0; i < botTags.length; i++) {
             if (botTags[i]) {
                 socket.emit('bot_status', { index: i + 1, total: botTags.length, tag: botTags[i] });
             }
@@ -474,7 +470,7 @@ io.on('connection', function(socket) {
     }
 });
 
-var PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
     console.log('\n🌸 RINTU FINAL: http://localhost:' + PORT);
     console.log('✅ Server started!');
