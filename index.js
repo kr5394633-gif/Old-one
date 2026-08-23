@@ -3,8 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { Client } = require('discord.js-selfbot-v13');
-const ytdl = require('ytdl-core');
-const ffmpeg = require('ffmpeg-static');
 const axios = require('axios');
 
 const app = express();
@@ -19,15 +17,10 @@ app.use(express.urlencoded({ extended: true }));
 let dashboardTokens = [];
 let isBotRunning = false;
 let clients = [];
-let voiceConnections = {};
-let players = {};
-let currentTitle = 'Nothing playing';
-let currentVolume = 1.0;
-let keepAliveIntervals = {};
 let tokenStatus = {};
 let botTags = [];
 
-console.log('🚀 RINTU FINAL STARTED!');
+console.log('🚀 RINTU STARTED!');
 
 // ─── START BOTS ───
 async function startBots(tokens) {
@@ -40,7 +33,6 @@ async function startBots(tokens) {
         return { success: false, error: 'No tokens' };
     }
 
-    // CLEAR old clients
     for (let i = 0; i < clients.length; i++) {
         try { clients[i].destroy(); } catch(e) {}
     }
@@ -54,7 +46,6 @@ async function startBots(tokens) {
     const totalTokens = dashboardTokens.length;
     console.log('📊 Total tokens to login: ' + totalTokens);
     
-    // Login all bots with delay
     for (let i = 0; i < dashboardTokens.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
@@ -110,21 +101,6 @@ function stopBots() {
     
     isBotRunning = false;
     
-    for (const key in players) {
-        try { players[key].stop(); } catch(e) {}
-    }
-    players = {};
-    
-    for (const key2 in voiceConnections) {
-        try { voiceConnections[key2].disconnect(); } catch(e) {}
-    }
-    voiceConnections = {};
-    
-    for (const key3 in keepAliveIntervals) {
-        clearInterval(keepAliveIntervals[key3]);
-    }
-    keepAliveIntervals = {};
-    
     for (let i = 0; i < clients.length; i++) {
         try { clients[i].destroy(); } catch(e) {}
     }
@@ -136,47 +112,25 @@ function stopBots() {
     return { success: true };
 }
 
-// ─── JOIN VOICE ───
-async function joinVoice(client, channelId) {
-    try {
-        console.log('🔄 Joining voice channel: ' + channelId);
+// ─── SEND MESSAGE TO CHANNEL ───
+async function sendMessageToChannel(channelId, content) {
+    let success = 0;
+    for (let i = 0; i < clients.length; i++) {
+        const client = clients[i];
+        if (!client) continue;
+        if (!tokenStatus[i] || !tokenStatus[i].valid) continue;
         
-        const channel = await client.channels.fetch(channelId);
-        if (!channel) {
-            console.log('❌ Channel not found');
-            return false;
+        try {
+            const channel = await client.channels.fetch(channelId);
+            if (channel) {
+                await channel.send(content);
+                success++;
+            }
+        } catch (err) {
+            console.log('❌ Bot ' + (i + 1) + ' send error:', err.message);
         }
-        
-        if (client.voice && client.voice.connection) {
-            console.log('⚠️ Already in voice, reconnecting...');
-            try { client.voice.disconnect(); } catch(e) {}
-            await sleep(1000);
-        }
-        
-        const connection = client.voice.connect(channelId);
-        console.log('✅ Connected to voice!');
-        
-        const intervalId = setInterval(function() {
-            try {
-                if (client.voice && client.voice.connection) {
-                    client.voice.connection.setSpeaking(true);
-                    setTimeout(function() {
-                        try { client.voice.connection.setSpeaking(false); } catch(e) {}
-                    }, 100);
-                }
-            } catch(e) {}
-        }, 15000);
-        
-        keepAliveIntervals[Date.now()] = intervalId;
-        return true;
-    } catch (err) {
-        console.log('❌ Join voice error:', err.message);
-        return false;
     }
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return success;
 }
 
 // ─── API ROUTES ───
@@ -244,8 +198,8 @@ app.get('/api/status', function(req, res) {
         botCount: clients.length,
         onlineCount: online,
         totalTokens: dashboardTokens.length,
-        currentTitle: currentTitle,
-        volume: Math.round(currentVolume * 100),
+        currentTitle: 'Nothing playing',
+        volume: 100,
         tokenStatus: tokenStatus,
         botTags: botTags
     });
@@ -264,175 +218,33 @@ app.post('/api/command', async function(req, res) {
     console.log('📨 Command:', cmd);
 
     try {
-        // ─── JOIN VOICE (CHANNEL ID) ───
+        // ─── SEND MESSAGE ───
         if (!isNaN(cmd) && cmd.length >= 10) {
             const channelId = cmd;
-            let joined = 0;
-            let failed = 0;
-            
-            for (let i = 0; i < clients.length; i++) {
-                const client = clients[i];
-                if (!client) continue;
-                if (!tokenStatus[i] || !tokenStatus[i].valid) continue;
-                
-                const success = await joinVoice(client, channelId);
-                if (success) {
-                    voiceConnections[i] = client.voice.connection;
-                    joined++;
-                } else {
-                    failed++;
-                }
-            }
-            
-            if (joined > 0) {
-                response = '✅ ' + joined + '/' + clients.length + ' bots joined voice!';
-                if (failed > 0) {
-                    response += ' ⚠️ ' + failed + ' failed';
-                }
+            const sent = await sendMessageToChannel(channelId, '✅ Bot is online and ready!');
+            response = '📨 Sent message to ' + sent + '/' + clients.length + ' bots in channel ' + channelId;
+        }
+        
+        // ─── SEND CUSTOM MESSAGE ───
+        else if (cmd === 'say' && args) {
+            const parts2 = args.split(' ');
+            const channelId = parts2[0];
+            const message = parts2.slice(1).join(' ');
+            if (!channelId || !message) {
+                response = '❌ Usage: say <channel_id> <message>';
             } else {
-                response = '❌ All bots failed to join. Make sure they are in the server and the channel ID is correct.';
+                const sent = await sendMessageToChannel(channelId, message);
+                response = '📨 Sent "' + message + '" to ' + sent + '/' + clients.length + ' bots';
             }
-        }
-        
-        // ─── PLAY ───
-        else if (cmd === 'play' && args) {
-            if (clients.length === 0) {
-                response = '❌ Start bots first!';
-            } else {
-                let played = 0;
-                let failedPlay = 0;
-                
-                for (let i2 = 0; i2 < clients.length; i2++) {
-                    const client2 = clients[i2];
-                    if (!client2) continue;
-                    if (!tokenStatus[i2] || !tokenStatus[i2].valid) continue;
-                    if (!client2.voice || !client2.voice.connection) {
-                        failedPlay++;
-                        continue;
-                    }
-                    
-                    try {
-                        const stream = ytdl(args, {
-                            filter: 'audioonly',
-                            quality: 'highestaudio',
-                            highWaterMark: 1 << 25
-                        });
-                        
-                        const dispatcher = client2.voice.connection.play(stream, {
-                            type: 'opus',
-                            volume: currentVolume
-                        });
-                        
-                        dispatcher.on('finish', function() {
-                            console.log('✅ Playback finished');
-                            io.emit('audio_update', { status: 'finished', title: 'Nothing playing' });
-                        });
-                        
-                        players[i2] = dispatcher;
-                        played++;
-                        currentTitle = '🎵 Playing';
-                        io.emit('audio_update', { status: 'playing', title: currentTitle, volume: Math.round(currentVolume * 100) });
-                    } catch (err) {
-                        console.log('❌ Play error bot ' + (i2 + 1) + ':', err.message);
-                        failedPlay++;
-                    }
-                }
-                
-                if (played > 0) {
-                    response = '🎵 Playing on ' + played + '/' + clients.length + ' bots!';
-                    if (failedPlay > 0) {
-                        response += ' ⚠️ ' + failedPlay + ' bots not in voice';
-                    }
-                } else {
-                    response = '❌ No bots in voice channel! Join voice first.';
-                }
-            }
-        }
-        
-        // ─── STOP ───
-        else if (cmd === 'stop') {
-            let stopped = 0;
-            for (const key in players) {
-                try {
-                    players[key].stop();
-                    stopped++;
-                } catch(e) {}
-            }
-            players = {};
-            response = '⏹️ Stopped on ' + stopped + ' bots';
-            io.emit('audio_update', { status: 'stopped', title: 'Nothing playing' });
-        }
-        
-        // ─── PAUSE ───
-        else if (cmd === 'pause') {
-            let paused = 0;
-            for (const key in players) {
-                try {
-                    players[key].pause();
-                    paused++;
-                } catch(e) {}
-            }
-            response = '⏸️ Paused on ' + paused + ' bots';
-        }
-        
-        // ─── RESUME ───
-        else if (cmd === 'resume') {
-            let resumed = 0;
-            for (const key in players) {
-                try {
-                    players[key].resume();
-                    resumed++;
-                } catch(e) {}
-            }
-            response = '▶️ Resumed on ' + resumed + ' bots';
-        }
-        
-        // ─── VOLUME ───
-        else if (cmd === 'volume' && args) {
-            const vol = parseInt(args);
-            if (isNaN(vol) || vol < 1 || vol > 2000) {
-                response = '❌ Volume must be 1-2000';
-            } else {
-                currentVolume = vol / 100;
-                for (const key in players) {
-                    try {
-                        players[key].setVolume(currentVolume);
-                    } catch(e) {}
-                }
-                response = '🔊 Volume set to ' + vol + '%';
-                io.emit('audio_update', { volume: Math.round(currentVolume * 100) });
-            }
-        }
-        
-        // ─── LEAVE ───
-        else if (cmd === 'leave') {
-            let left = 0;
-            for (let i3 = 0; i3 < clients.length; i3++) {
-                const client3 = clients[i3];
-                if (!client3) continue;
-                if (client3.voice && client3.voice.connection) {
-                    try {
-                        client3.voice.disconnect();
-                        left++;
-                    } catch(e) {}
-                }
-            }
-            voiceConnections = {};
-            players = {};
-            for (const key in keepAliveIntervals) {
-                clearInterval(keepAliveIntervals[key]);
-            }
-            keepAliveIntervals = {};
-            response = '👋 Left voice on ' + left + ' bots';
         }
         
         // ─── HELP ───
         else if (cmd === 'help') {
-            response = 'Commands:\n<channel_id> - Join voice\nplay <url> - Play music\nstop - Stop playback\npause - Pause\nresume - Resume\nvolume <1-2000> - Set volume\nleave - Leave voice';
+            response = 'Commands:\n<channel_id> - Send "Bot is online"\nsay <channel_id> <message> - Send custom message\nhelp - Show this';
         }
         
         else {
-            response = '❌ Unknown command. Try: <channel_id>, play <url>, stop, pause, resume, volume, leave';
+            response = '❌ Unknown command. Try: <channel_id>, say <channel_id> <message>, help';
         }
     } catch (err) {
         response = '❌ Error: ' + err.message;
@@ -457,8 +269,8 @@ io.on('connection', function(socket) {
         botCount: clients.length,
         onlineCount: online,
         totalTokens: dashboardTokens.length,
-        currentTitle: currentTitle,
-        volume: Math.round(currentVolume * 100)
+        currentTitle: 'Nothing playing',
+        volume: 100
     });
     
     if (botTags.length > 0) {
@@ -472,7 +284,7 @@ io.on('connection', function(socket) {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, function() {
-    console.log('\n🌸 RINTU FINAL: http://localhost:' + PORT);
+    console.log('\n🌸 RINTU: http://localhost:' + PORT);
     console.log('✅ Server started!');
-    console.log('📊 ALL BOTS WILL COME ONLINE!\n');
+    console.log('📊 Bots can send messages! (Voice not supported for selfbots)\n');
 });
